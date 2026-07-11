@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Ore Line Shutdown — October 2026 Daily Reporting</title>
+<title>Transnet | Ore Line Shutdown — October 2026 Daily Reporting</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -11,10 +11,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
-  --ore:#9E3B1F;          /* hematite */
-  --ore-dark:#7A2D16;
-  --steel:#22282E;        /* header charcoal */
-  --steel-2:#39424B;
+  --ore:#00954C;          /* Transnet green */
+  --ore-dark:#00723B;
+  --tn-red:#E2231A;       /* Transnet red */
+  --tn-red-dark:#B71C14;
+  --steel:#0F2436;        /* Transnet deep navy header */
+  --steel-2:#1C3A52;
   --bg:#EDEFF1;           /* cool platform grey */
   --card:#FFFFFF;
   --line:#D7DBDF;
@@ -40,17 +42,20 @@ input,select,textarea{font-family:var(--body);font-size:14px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
 /* ---------- App bar ---------- */
-.appbar{background:var(--steel);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:1000}
-.appbar .mark{display:flex;align-items:baseline;gap:10px;min-width:0}
-.appbar h1{font-family:var(--disp);font-weight:700;font-size:24px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
-.appbar h1 b{color:#E8825B;font-weight:700}
-.appbar .sub{font-family:var(--mono);font-size:11px;color:#AEB8C2;letter-spacing:.02em}
+.appbar{background:var(--steel);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:1000;border-bottom:3px solid var(--ore)}
+.appbar .mark{display:flex;align-items:center;gap:12px;min-width:0}
+.tnlogo{flex:none;display:block}
+.appbar .wordmark{display:flex;flex-direction:column;gap:1px;min-width:0}
+.appbar .tnname{font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#fff;line-height:1}
+.appbar h1{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;color:#AEB8C2;line-height:1.1}
+.appbar h1 b{color:#fff;font-weight:700}
+.appbar .sub{font-family:var(--mono);font-size:11px;color:#8AA3B8;letter-spacing:.02em}
 .appbar .spacer{flex:1}
-.appbar select{background:var(--steel-2);color:#fff;border:1px solid #4A545E;border-radius:7px;padding:7px 10px;font-size:13px;font-weight:600}
-.appbar .btn-ghost{background:transparent;color:#C9D2DA;border:1px solid #4A545E;border-radius:7px;padding:7px 12px;font-size:13px;font-weight:600}
+.appbar select{background:var(--steel-2);color:#fff;border:1px solid #2E4E68;border-radius:7px;padding:7px 10px;font-size:13px;font-weight:600}
+.appbar .btn-ghost{background:transparent;color:#C9D2DA;border:1px solid #2E4E68;border-radius:7px;padding:7px 12px;font-size:13px;font-weight:600}
 .appbar .btn-ghost:hover{background:var(--steel-2);color:#fff}
-.rolechip{font-size:11px;font-family:var(--mono);background:#E8825B;color:#2A1006;border-radius:20px;padding:3px 10px;font-weight:500;white-space:nowrap}
-.rolechip.viewonly{background:#8FA0B0;color:#0F1418}
+.rolechip{font-size:11px;font-family:var(--mono);background:var(--ore);color:#fff;border-radius:20px;padding:3px 10px;font-weight:500;white-space:nowrap}
+.rolechip.viewonly{background:#4A5F70;color:#fff}
 
 /* ---------- Day strip (track) ---------- */
 .daystrip-wrap{background:var(--card);border-bottom:1px solid var(--line);padding:14px 16px 10px;overflow-x:auto}
@@ -145,14 +150,35 @@ table.data input[type=number]{width:74px;padding:4px 6px;border:1px solid var(--
 .photocard .gps{font-family:var(--mono);font-size:10px}
 #photomap{height:340px;border-radius:8px;border:1px solid var(--line);z-index:1}
 
-/* ---------- Weather ---------- */
-.wxcard{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:14px}
-.wxcard h3{font-family:var(--disp);font-size:18px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.wxcard .coords{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);margin-bottom:8px}
-.wxrow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed #E7EAEC;font-size:13px;gap:6px}
-.wxrow .d{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);min-width:56px}
-.wxrow .v{font-family:var(--mono);font-size:12px;text-align:right}
-.riskflag{font-size:10.5px;font-family:var(--mono);padding:1px 7px;border-radius:10px}
+/* ---------- Weather / WeatherWatch ---------- */
+.wxlegend{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:9px 12px;margin-bottom:12px;line-height:1.7}
+.wxlegend b{color:var(--ink)}
+.wxlegend .lg-amber{color:#8A5A00;background:var(--warn-bg);border-radius:4px;padding:0 5px;font-weight:600}
+.wxlegend .lg-red{color:#fff;background:var(--tn-red);border-radius:4px;padding:0 5px;font-weight:600}
+.wxlegend .sep{color:var(--line);margin:0 4px}
+
+.risktrack-wrap{overflow-x:auto;padding-bottom:4px}
+.risktrack{display:flex;min-width:max-content;position:relative;padding-top:6px}
+.risktrack::before{content:"";position:absolute;left:20px;right:20px;top:34px;height:3px;background:var(--steel-2);border-radius:2px;z-index:0}
+.rloop{flex:none;width:92px;text-align:center;position:relative;z-index:1}
+.rloop .dot{width:30px;height:30px;border-radius:50%;background:#8FA0B0;color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto;font-family:var(--disp);font-weight:700;font-size:13px;border:2px solid var(--card)}
+.rloop.rl-low .dot{background:#8FA0B0}
+.rloop.rl-medium .dot{background:var(--warn)}
+.rloop.rl-high .dot{background:var(--tn-red)}
+.rloop.rl-port .dot{background:var(--steel);width:24px;height:24px;font-size:11px}
+.rloop .nm{font-family:var(--disp);font-size:10.5px;font-weight:600;letter-spacing:.02em;margin-top:16px;white-space:nowrap;transform:rotate(-30deg);transform-origin:top left;color:var(--ink-2)}
+
+.wxtblwrap{overflow-x:auto}
+table.wx{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+table.wx th,table.wx td{padding:5px 7px;border-bottom:1px solid #EDEFF1;border-right:1px solid #F3F5F6;text-align:right}
+table.wx th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);background:#FAFBFC;position:sticky;top:0}
+table.wx td.loopcell,table.wx th.loopcell{text-align:left;position:sticky;left:0;background:#fff;font-weight:600;font-family:var(--disp);letter-spacing:.02em;z-index:2;box-shadow:2px 0 0 var(--line)}
+table.wx th.loopcell{background:#FAFBFC;z-index:3}
+table.wx td.daycell{font-family:var(--mono)}
+table.wx td.amber{background:var(--warn-bg)}
+table.wx td.red{background:#FBDBD8}
+table.wx .daygrp{text-align:center;border-left:2px solid var(--line)}
+table.wx td.riskcell{text-align:center}
 
 /* ---------- Forms / setup ---------- */
 .frow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end}
@@ -183,7 +209,14 @@ footer{max-width:1180px;margin:0 auto;padding:0 14px 30px;font-size:11.5px;color
 
 <div class="appbar">
   <div class="mark">
-    <h1>ORE LINE <b>SHUTDOWN</b></h1>
+    <svg class="tnlogo" width="30" height="26" viewBox="0 0 30 26" aria-hidden="true">
+      <polygon points="0,26 12,26 12,10" fill="var(--ore)"/>
+      <polygon points="14,26 30,26 30,17 22,17 30,7 30,0 16,0 16,7 24,7 14,20" fill="var(--tn-red)"/>
+    </svg>
+    <div class="wordmark">
+      <span class="tnname">Transnet</span>
+      <h1>Ore Line <b>Shutdown</b></h1>
+    </div>
     <span class="sub" id="subTitle">SISHEN–SALDANHA · OCT 2026 · 10-DAY POSSESSION</span>
   </div>
   <div class="spacer"></div>
@@ -513,7 +546,7 @@ function drawOverviewChart(plan, act){
   ovChartObj = new Chart(c, { type:'line',
     data:{ labels, datasets:[
       { label:'Plan', data:plan, borderColor:'#8FA0B0', borderDash:[6,4], pointRadius:0, tension:.25 },
-      { label:'Actual', data:act.map((v,i)=> i<=last? v : null), borderColor:'#9E3B1F', backgroundColor:'rgba(158,59,31,.10)', fill:true, pointRadius:3, tension:.25 },
+      { label:'Actual', data:act.map((v,i)=> i<=last? v : null), borderColor:'#00954C', backgroundColor:'rgba(0,149,76,.10)', fill:true, pointRadius:3, tension:.25 },
     ]},
     options:{ maintainAspectRatio:false, scales:{ y:{min:0,max:100,ticks:{callback:v=>v+'%'}} }, plugins:{legend:{position:'bottom'}} }
   });
@@ -702,7 +735,7 @@ function seedDemoPhotos(){
     if(!hit || (hit.kpi.photos||[]).length) return;
     const cv=document.createElement('canvas'); cv.width=640; cv.height=420;
     const g=cv.getContext('2d');
-    g.fillStyle='#39424B'; g.fillRect(0,0,640,420);
+    g.fillStyle='#1C3A52'; g.fillRect(0,0,640,420);
     g.fillStyle=s.col; g.fillRect(0,340,640,80);
     g.strokeStyle='#5A6672'; g.lineWidth=3;
     for(let i=0;i<9;i++){ g.beginPath(); g.moveTo(40+i*70,340); g.lineTo(90+i*70,80); g.stroke(); }
@@ -746,7 +779,7 @@ function renderPhotos(){
     photoMap=L.map('photomap',{scrollWheelZoom:false}).setView([-30.6,19.5],6);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:17, attribution:'© OpenStreetMap'}).addTo(photoMap);
     const line=[[-27.7846,22.9843],[-28.55,21.9],[-29.2,20.4],[-29.66,19.5],[-30.55,18.03],[-31.55,18.25],[-32.35,18.32],[-33.0117,17.9442]];
-    L.polyline(line,{color:'#9E3B1F',weight:3,opacity:.7,dashArray:'6 6'}).addTo(photoMap);
+    L.polyline(line,{color:'#00954C',weight:3,opacity:.7,dashArray:'6 6'}).addTo(photoMap);
     photoLayer=L.layerGroup().addTo(photoMap);
     withGps.forEach(x=>{
       L.circleMarker([x.p.lat,x.p.lon],{radius:8,color:x.div.color,fillColor:x.div.color,fillOpacity:.85})
@@ -800,7 +833,7 @@ function drawMainChart(){
     const k=s.kpi; yTitle=k.unit; type='bar';
     if(series==='daily'){
       datasets.push({label:'Target', data:k.targets, backgroundColor:'#B9C4CE'});
-      datasets.push({label:'Actual', data:k.actuals.map((v,i)=>i<=last?v:null), backgroundColor:'#9E3B1F'});
+      datasets.push({label:'Actual', data:k.actuals.map((v,i)=>i<=last?v:null), backgroundColor:'#00954C'});
     } else { // variance
       datasets.push({label:'Variance (actual − target)', data:k.actuals.map((v,i)=> v==null?null:v-k.targets[i]),
         backgroundColor:k.actuals.map((v,i)=> v==null?'#ccc':(v-k.targets[i]>=0?'#1E7D46':'#B3261E'))});
@@ -808,15 +841,15 @@ function drawMainChart(){
   } else if(s.kpi && series==='cum'){
     const k=s.kpi; yTitle=k.unit;
     datasets.push({label:'Plan (cum)', data:labels.map((_,d)=>cumT(k,d)), borderColor:'#8FA0B0', borderDash:[6,4], pointRadius:0, tension:.2});
-    datasets.push({label:'Actual (cum)', data:labels.map((_,d)=> d<=last? cumA(k,d):null), borderColor:'#9E3B1F', pointRadius:3, tension:.2});
+    datasets.push({label:'Actual (cum)', data:labels.map((_,d)=> d<=last? cumA(k,d):null), borderColor:'#00954C', pointRadius:3, tension:.2});
   } else {
     const cv=scopeCurves(s.items); maxY=100;
     if(series==='cum'){
       datasets.push({label:s.label+' — plan', data:cv.plan, borderColor:'#8FA0B0', borderDash:[6,4], pointRadius:0, tension:.2});
-      datasets.push({label:s.label+' — actual', data:cv.act.map((v,i)=>i<=last?v:null), borderColor:'#9E3B1F', pointRadius:3, tension:.2});
+      datasets.push({label:s.label+' — actual', data:cv.act.map((v,i)=>i<=last?v:null), borderColor:'#00954C', pointRadius:3, tension:.2});
     } else if(series==='daily'){
       type='bar';
-      datasets.push({label:s.label+' — daily attainment %', data:labels.map((_,d)=>dailyAttainment(s.items,d)), backgroundColor:'#9E3B1F'});
+      datasets.push({label:s.label+' — daily attainment %', data:labels.map((_,d)=>dailyAttainment(s.items,d)), backgroundColor:'#00954C'});
       maxY=130;
     } else {
       type='bar';
@@ -845,44 +878,127 @@ function drawDivChart(){
     options:{maintainAspectRatio:false, scales:{y:{min:0,max:130,title:{display:true,text:'Daily attainment %'}}}, plugins:{legend:{position:'bottom'}}}});
 }
 
-/* ---------- Weather (Open-Meteo, as per WeatherWatch corridor tooling) ---------- */
-const WX_SITES=[
-  {name:'Sishen', role:'Loading — mine end', lat:-27.7846, lon:22.9843},
-  {name:'Halfweg (mid-corridor)', role:'Loops 8–12 work sites', lat:-30.55, lon:18.03},
-  {name:'Saldanha', role:'Port & terminal', lat:-33.0117, lon:17.9442},
+/* ---------- Weather — WeatherWatch corridor report (Sishen → Saldanha loops) ---------- */
+/* Loop siding positions are interpolated along the corridor alignment for mapping/forecast
+   purposes; loop numbering and names follow the WeatherWatch shutdown report. */
+const WX_LOOPS=[
+  {loop:19, name:'Langberg',         lat:-28.0233, lon:22.6461},
+  {loop:18, name:'Vrolik',           lat:-28.2620, lon:22.3079},
+  {loop:17, name:'Witpan',           lat:-28.5008, lon:21.9697},
+  {loop:16, name:'Rooilyf',          lat:-28.6807, lon:21.5985},
+  {loop:15, name:'Oorkruis',         lat:-28.8452, lon:21.2187},
+  {loop:14, name:'Rugseer',          lat:-29.0098, lon:20.8388},
+  {loop:13, name:'Kenhardt',         lat:-29.1744, lon:20.4590},
+  {loop:12, name:'Kolke',            lat:-29.3591, lon:20.0887},
+  {loop:11, name:'Dagab',            lat:-29.5475, lon:19.7201},
+  {loop:10, name:'Halfweg',          lat:-29.7464, lon:19.3573},
+  {loop:9,  name:'Commissionerspan', lat:-29.9608, lon:19.0032},
+  {loop:8,  name:'Sous',             lat:-30.1752, lon:18.6491},
+  {loop:7,  name:'Abikwa',           lat:-30.3896, lon:18.2950},
+  {loop:6,  name:'Kanakies',         lat:-30.6518, lon:18.0524},
+  {loop:5,  name:'Saggiesberg',      lat:-31.0561, lon:18.1413},
+  {loop:4,  name:'Knersvlakte',      lat:-31.4603, lon:18.2303},
+  {loop:3,  name:'Bamboesbaai',      lat:-31.8709, lon:18.2781},
+  {loop:2,  name:'Kreefbaai',        lat:-32.2833, lon:18.3142},
+  {loop:1,  name:'Dwarskersbos',     lat:-32.6517, lon:18.1486},
+  {loop:null, name:'Saldanha Bay', port:true, lat:-33.0117, lon:17.9442},
 ];
-function wxRisk(gust, rain){
-  const flags=[];
-  if(gust>=60) flags.push(['b-bad','WIND — suspend OHTE elevated work & crane lifts']);
-  else if(gust>=45) flags.push(['b-warn','Wind watch — assess lifts and live-line work']);
-  if(rain>=10) flags.push(['b-bad','RAIN — formation, earthworks & tamping at risk']);
-  else if(rain>=3) flags.push(['b-warn','Rain watch — protect open formation']);
-  return flags;
+/* Risk thresholds per the WeatherWatch legend:
+   Amber (medium) — wind 25–40 km/h · precip 4–10 mm/day · temp <5°C or >35°C
+   Red   (high)   — wind >40 km/h  · precip >10 mm/day  · temp <0°C or >40°C   */
+function wxRiskLevel(rain, wind, tmin, tmax){
+  if(wind>40 || rain>10 || tmin<0 || tmax>40) return 'high';
+  if(wind>=25 || rain>=4 || tmin<5 || tmax>35) return 'medium';
+  return 'low';
 }
+const RISK_RANK={low:0, medium:1, high:2};
+const RISK_LABEL={low:'Low', medium:'Medium', high:'High'};
+
+async function fetchLoopForecast(loop, days){
+  const url=`https://api.open-meteo.com/v1/forecast?latitude=${loop.lat}&longitude=${loop.lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&forecast_days=${days}&timezone=Africa%2FJohannesburg`;
+  const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
+  const j=await r.json(); const d=j.daily;
+  const rows=d.time.map((t,i)=>{
+    const rain=+d.precipitation_sum[i].toFixed(1);
+    const wind=Math.round(d.wind_speed_10m_max[i]);
+    const tmin=Math.round(d.temperature_2m_min[i]);
+    const tmax=Math.round(d.temperature_2m_max[i]);
+    return {t, rain, wind, tmin, tmax, level: wxRiskLevel(rain,wind,tmin,tmax)};
+  });
+  return {loop, dates:d.time, rows};
+}
+
+function renderRiskTrack(loopResults){
+  return `<div class="risktrack-wrap"><div class="risktrack">${loopResults.map(res=>{
+    const l=res.loop;
+    let cls='rl-low', label=l.port?'⚓':l.loop;
+    if(res.rows){
+      const worst=res.rows.reduce((w,r)=>RISK_RANK[r.level]>RISK_RANK[w]?r.level:w,'low');
+      cls='rl-'+worst;
+    } else cls='';
+    if(l.port) cls+=' rl-port';
+    return `<div class="rloop ${cls}"><div class="dot">${label}</div><div class="nm">${esc(l.name)}</div></div>`;
+  }).join('')}</div></div>`;
+}
+
+function renderWxTable(loopResults, dates, days){
+  const dayHead1 = dates.map((t,i)=>{
+    const dt=new Date(t+'T00:00:00');
+    const tag = i<15 ? 'IFS' : 'EC46';
+    return `<th colspan="3" class="daygrp">${dt.toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'})} <span style="opacity:.6">${tag}</span></th>`;
+  }).join('');
+  const dayHead2 = dates.map(()=>`<th class="daygrp">mm</th><th>km/h</th><th>°C range</th>`).join('');
+  const bodyRows = loopResults.map(res=>{
+    const l=res.loop;
+    if(!res.rows){
+      return `<tr><td class="loopcell">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${dates.map(()=>`<td class="daycell">—</td><td class="daycell">—</td><td class="daycell">—</td>`).join('')}<td class="riskcell"><span class="badge b-grey">no data</span></td></tr>`;
+    }
+    let worst='low';
+    const cells=res.rows.map(r=>{
+      if(RISK_RANK[r.level]>RISK_RANK[worst]) worst=r.level;
+      const cls = r.level==='high'?'red':(r.level==='medium'?'amber':'');
+      return `<td class="daycell ${cls}">${r.rain}</td><td class="daycell ${cls}">${r.wind}</td><td class="daycell ${cls}">${r.tmin}–${r.tmax}°</td>`;
+    }).join('');
+    const riskBadge = worst==='high'?'b-bad':(worst==='medium'?'b-warn':'b-grey');
+    return `<tr><td class="loopcell">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${cells}<td class="riskcell"><span class="badge ${riskBadge}">${RISK_LABEL[worst]}</span></td></tr>`;
+  }).join('');
+  return `<div class="wxtblwrap"><table class="wx">
+    <thead><tr><th class="loopcell" rowspan="2">Loop</th>${dayHead1}<th rowspan="2">Risk</th></tr><tr>${dayHead2}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table></div>`;
+}
+
 async function renderWeather(){
   const el=$('#tab-weather');
-  el.innerHTML=`<div class="note" style="margin-bottom:10px">Forecast feed: Open-Meteo (same source as the WeatherWatch corridor dashboard). Thresholds — wind gust ≥60 km/h: stop elevated/crane work; rain ≥10 mm: earthworks & tamping risk.</div>
-    <div class="grid3" id="wxGrid">${WX_SITES.map(s=>`<div class="wxcard" id="wx-${s.name.replace(/\W/g,'')}"><h3>${esc(s.name)}</h3><div class="coords">${s.lat.toFixed(4)}, ${s.lon.toFixed(4)} · ${esc(s.role)}</div><div class="note">Loading forecast…</div></div>`).join('')}</div>`;
-  for(const s of WX_SITES){
-    const box=$('#wx-'+s.name.replace(/\W/g,''));
-    try{
-      const url=`https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_gusts_10m_max&forecast_days=7&timezone=Africa%2FJohannesburg`;
-      const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
-      const j=await r.json(); const d=j.daily;
-      let rows='';
-      d.time.forEach((t,i)=>{
-        const gust=Math.round(d.wind_gusts_10m_max[i]), rain=+d.precipitation_sum[i].toFixed(1);
-        const flags=wxRisk(gust,rain);
-        rows+=`<div class="wxrow"><span class="d">${new Date(t).toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'})}</span>
-          <span class="v">${Math.round(d.temperature_2m_min[i])}–${Math.round(d.temperature_2m_max[i])}°C · ${rain} mm · gust ${gust}</span></div>
-          ${flags.map(f=>`<div style="text-align:right;padding:2px 0"><span class="riskflag ${f[0]==='b-bad'?'b-bad':'b-warn'} badge ${f[0]}">${f[1]}</span></div>`).join('')}`;
-      });
-      box.innerHTML=`<h3>${esc(s.name)}</h3><div class="coords">${s.lat.toFixed(4)}, ${s.lon.toFixed(4)} · ${esc(s.role)}</div>${rows}`;
-    }catch(e){
-      box.innerHTML=`<h3>${esc(s.name)}</h3><div class="coords">${s.lat.toFixed(4)}, ${s.lon.toFixed(4)} · ${esc(s.role)}</div>
-        <div class="note">Live forecast unavailable in this environment. When hosted (e.g. weatherwatch.co.za) this panel pulls the 7-day Open-Meteo forecast with wind and rain risk flags per work site.</div>`;
-    }
+  const days=Math.min(Math.max(state.meta.days,1),16);
+  el.innerHTML=`
+    <div class="wxlegend">
+      <b>Sources</b> — IFS HRES ECMWF 9 km (days 1–15) · EC46 ~ ECMWF ensemble mean, 36 km, indicative · ERA5 actual observed (via Open-Meteo)
+      <span class="sep">|</span>
+      <span class="lg-amber">Amber</span> = medium risk (wind 25–40 km/h · precip 4–10 mm/day · temp &lt;5°C or &gt;35°C)
+      <span class="sep">|</span>
+      <span class="lg-red">Red</span> = high risk (wind &gt;40 km/h · precip &gt;10 mm/day · temp &lt;0°C or &gt;40°C)
+    </div>
+    <div class="card">
+      <h2>Risk map <span class="hint">Sishen → Saldanha Bay · live weather risk by loop</span></h2>
+      <div id="wxTrack">${renderRiskTrack(WX_LOOPS.map(l=>({loop:l,rows:null})))}</div>
+    </div>
+    <div class="card">
+      <h2>Weather Watch — ${days}-day corridor forecast <span class="hint">per loop, per day</span></h2>
+      <div id="wxTableWrap" class="note">Loading forecast for ${WX_LOOPS.length} loops…</div>
+    </div>`;
+
+  const settled = await Promise.allSettled(WX_LOOPS.map(l=>fetchLoopForecast(l, days)));
+  const loopResults = settled.map((s,i)=> s.status==='fulfilled'? s.value : {loop:WX_LOOPS[i], rows:null});
+  const ok = loopResults.filter(r=>r.rows);
+
+  $('#wxTrack').innerHTML = renderRiskTrack(loopResults);
+
+  if(!ok.length){
+    $('#wxTableWrap').innerHTML = `<div class="note">Live forecast unavailable in this environment. When hosted, this table pulls a ${days}-day Open-Meteo forecast (precipitation, max wind speed, temperature range) for each of the ${WX_LOOPS.length} loops between Sishen and Saldanha Bay, risk-flagged per the legend above.</div>`;
+    return;
   }
+  $('#wxTableWrap').innerHTML = renderWxTable(loopResults, ok[0].dates, days);
 }
 
 /* ---------- Setup / admin ---------- */
