@@ -892,19 +892,34 @@ function subscribeRealtime(){
 }
 
 /* ---------- Boot ---------- */
+/* Tabs' sticky offset must match the appbar's *actual* rendered height —
+   it wraps to two lines on narrow screens, so a hardcoded px value leaves
+   the tabs bar stuck underneath/behind it instead of right below it. */
+function syncAppbarHeight(){
+  const bar = $('.appbar'); if(!bar) return;
+  document.documentElement.style.setProperty('--appbar-h', bar.offsetHeight+'px');
+}
+window.addEventListener('resize', ()=>{
+  clearTimeout(window.__appbarResizeT);
+  window.__appbarResizeT = setTimeout(syncAppbarHeight, 120);
+});
+
 function renderAll(){
   renderRole(); renderAuthArea(); renderDaystrip(); applyActiveTab();
   $('#subTitle').textContent = (state.meta.corridor||'').toUpperCase()+' · '+state.meta.days+'-DAY POSSESSION';
   renderActiveTab();
   $('#foot').innerHTML = `Live shutdown reporting for TRIM / TE / TPT and mine customers, backed by Supabase — edits save immediately and sync to everyone viewing the report. Weather risk reporting for the corridor lives on its own <a href="weather.html">WeatherWatch page</a>. See <a href="supabase/README.md">supabase/README.md</a> to invite editors.`;
+  syncAppbarHeight();
 }
 function showSetupNeeded(msg){
   const note=$('#offlineNote');
   note.style.display='block'; note.textContent=msg;
   renderAuthArea();
   $('#foot').innerHTML = 'Backend not connected — see <a href="supabase/README.md">supabase/README.md</a> for setup steps.';
+  syncAppbarHeight();
 }
 (async function init(){
+  syncAppbarHeight();
   if(!sb){
     showSetupNeeded('Supabase is not configured yet — paste your Project URL and anon key into the SUPABASE_URL / SUPABASE_ANON_KEY constants near the top of the script, then run supabase/schema.sql in the SQL Editor.');
     return;

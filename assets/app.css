@@ -38,6 +38,10 @@ input,select,textarea{font-family:var(--body);font-size:14px}
 .appbar h1 b{color:#fff;font-weight:700}
 .appbar .sub{font-family:var(--mono);font-size:11px;color:#8AA3B8;letter-spacing:.02em}
 .appbar .spacer{flex:1}
+@media(max-width:480px){
+  .appbar .mark{flex-wrap:wrap}
+  .appbar .sub{flex-basis:100%;margin-top:2px}
+}
 .appbar select{background:var(--steel-2);color:#fff;border:1px solid #2E4E68;border-radius:7px;padding:7px 10px;font-size:13px;font-weight:600}
 .appbar .btn-ghost{background:transparent;color:#C9D2DA;border:1px solid #2E4E68;border-radius:7px;padding:7px 12px;font-size:13px;font-weight:600}
 .appbar .btn-ghost:hover{background:var(--steel-2);color:#fff}
@@ -63,7 +67,7 @@ input,select,textarea{font-family:var(--body);font-size:14px}
 .daystrip-label{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-bottom:8px;display:flex;justify-content:space-between;min-width:640px}
 
 /* ---------- Tabs ---------- */
-.tabs{display:flex;gap:2px;background:var(--card);border-bottom:2px solid var(--line);padding:0 10px;overflow-x:auto;position:sticky;top:64px;z-index:900}
+.tabs{display:flex;gap:2px;background:var(--card);border-bottom:2px solid var(--line);padding:0 10px;overflow-x:auto;position:sticky;top:var(--appbar-h, 64px);z-index:900}
 .tabs button,.tabs a{background:none;border:none;padding:12px 14px;font-family:var(--disp);font-size:16px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;text-decoration:none;display:inline-block}
 .tabs button.active,.tabs a.active{color:var(--ore);border-bottom-color:var(--ore)}
 main{max-width:1180px;margin:0 auto;padding:16px 14px 90px}
@@ -153,7 +157,7 @@ table.data input[type=number]{width:74px;padding:4px 6px;border:1px solid var(--
 .rloop.rl-medium .dot{background:var(--warn)}
 .rloop.rl-high .dot{background:var(--tn-red)}
 .rloop.rl-port .dot{background:var(--steel);width:24px;height:24px;font-size:11px}
-.rloop .nm{font-family:var(--disp);font-size:10.5px;font-weight:600;letter-spacing:.02em;margin-top:16px;white-space:nowrap;transform:rotate(-30deg);transform-origin:top left;color:var(--ink-2)}
+.rloop .nm{font-family:var(--disp);font-size:10.5px;font-weight:600;letter-spacing:.02em;margin-top:26px;white-space:nowrap;transform:rotate(-30deg);transform-origin:top left;color:var(--ink-2)}
 
 .wxtblwrap{overflow-x:auto}
 table.wx{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
