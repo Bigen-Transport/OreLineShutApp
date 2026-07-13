@@ -17,9 +17,9 @@
   --warn-bg:#FBF0DC;
   --bad-bg:#F9E4E2;
   --radius:10px;
-  --disp:'Barlow Condensed', 'Arial Narrow', sans-serif;
-  --body:'Barlow', 'Segoe UI', system-ui, sans-serif;
-  --mono:'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --disp:Tahoma, Geneva, sans-serif;
+  --body:Tahoma, Geneva, sans-serif;
+  --mono:Tahoma, Geneva, sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
