@@ -17,13 +17,13 @@
   --warn-bg:#FBF0DC;
   --bad-bg:#F9E4E2;
   --radius:10px;
-  --disp:Tahoma, Geneva, sans-serif;
-  --body:Tahoma, Geneva, sans-serif;
-  --mono:Tahoma, Geneva, sans-serif;
+  --disp:'Segoe UI Semibold', 'Segoe UI', sans-serif;
+  --body:'Segoe UI', sans-serif;
+  --mono:'Segoe UI', sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
-body{font-family:var(--body);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45}
+body{font-family:var(--body);background:var(--bg);color:var(--ink);font-size:12pt;line-height:1.45}
 button{font-family:var(--body);cursor:pointer}
 input,select,textarea{font-family:var(--body);font-size:14px}
 :focus-visible{outline:3px solid var(--ore);outline-offset:2px}
