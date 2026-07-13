@@ -118,8 +118,8 @@ function fmtDow(i){ return dayDate(i).toLocaleDateString('en-ZA',{weekday:'short
 /* ---------- Supabase backend ---------- */
 /* Replace these two with your project's values (Project Settings > API),
    then run supabase/schema.sql once in the SQL Editor. See supabase/README.md. */
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://yhqkderdncspjzhcjwan.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_YZCjNIHUXlwEATGe8xrKAw__HwjUuM-';
 const supabaseConfigured = /^https:\/\//.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 20;
 const sb = (supabaseConfigured && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
