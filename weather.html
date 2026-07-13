@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Transnet | WeatherWatch — Sishen–Saldanha Corridor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<div class="appbar">
+  <div class="mark">
+    <img class="tnlogo" src="assets/transnet-logo.png" alt="Transnet">
+    <div class="wordmark">
+      <h1>Weather <b>Watch</b></h1>
+    </div>
+    <span class="sub">SISHEN–SALDANHA · LIVE CORRIDOR WEATHER RISK</span>
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<nav class="tabs" id="tabs">
+  <a href="index.html">Overview</a>
+  <a href="index.html#drill">Drill-down</a>
+  <a href="index.html#charts">Charts</a>
+  <a href="index.html#photos">Photos</a>
+  <a href="weather.html" class="active">Weather</a>
+  <a href="index.html#setup">Setup</a>
+</nav>
+
+<main>
+  <div id="weatherRoot"></div>
+</main>
+
+<footer id="foot">WeatherWatch corridor forecast · per-loop risk for the Sishen–Saldanha ore line, Langberg (L19) to Saldanha Bay · part of the Ore Line Shutdown reporting suite.</footer>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const FORECAST_DAYS = 10; // mirrors the shutdown possession window on the main report
+
+/* ---------- Weather — WeatherWatch corridor report (Sishen → Saldanha loops) ---------- */
+/* Loop siding positions are interpolated along the corridor alignment for mapping/forecast
+   purposes; loop numbering and names follow the WeatherWatch shutdown report. */
+const WX_LOOPS=[
+  {loop:19, name:'Langberg',         lat:-28.0233, lon:22.6461},
+  {loop:18, name:'Vrolik',           lat:-28.2620, lon:22.3079},
+  {loop:17, name:'Witpan',           lat:-28.5008, lon:21.9697},
+  {loop:16, name:'Rooilyf',          lat:-28.6807, lon:21.5985},
+  {loop:15, name:'Oorkruis',         lat:-28.8452, lon:21.2187},
+  {loop:14, name:'Rugseer',          lat:-29.0098, lon:20.8388},
+  {loop:13, name:'Kenhardt',         lat:-29.1744, lon:20.4590},
+  {loop:12, name:'Kolke',            lat:-29.3591, lon:20.0887},
+  {loop:11, name:'Dagab',            lat:-29.5475, lon:19.7201},
+  {loop:10, name:'Halfweg',          lat:-29.7464, lon:19.3573},
+  {loop:9,  name:'Commissionerspan', lat:-29.9608, lon:19.0032},
+  {loop:8,  name:'Sous',             lat:-30.1752, lon:18.6491},
+  {loop:7,  name:'Abikwa',           lat:-30.3896, lon:18.2950},
+  {loop:6,  name:'Kanakies',         lat:-30.6518, lon:18.0524},
+  {loop:5,  name:'Saggiesberg',      lat:-31.0561, lon:18.1413},
+  {loop:4,  name:'Knersvlakte',      lat:-31.4603, lon:18.2303},
+  {loop:3,  name:'Bamboesbaai',      lat:-31.8709, lon:18.2781},
+  {loop:2,  name:'Kreefbaai',        lat:-32.2833, lon:18.3142},
+  {loop:1,  name:'Dwarskersbos',     lat:-32.6517, lon:18.1486},
+  {loop:null, name:'Saldanha Bay', port:true, lat:-33.0117, lon:17.9442},
+];
+/* Risk thresholds per the WeatherWatch legend:
+   Amber (medium) — wind 25–40 km/h · precip 4–10 mm/day · temp <5°C or >35°C
+   Red   (high)   — wind >40 km/h  · precip >10 mm/day  · temp <0°C or >40°C   */
+function wxRiskLevel(rain, wind, tmin, tmax){
+  if(wind>40 || rain>10 || tmin<0 || tmax>40) return 'high';
+  if(wind>=25 || rain>=4 || tmin<5 || tmax>35) return 'medium';
+  return 'low';
+}
+const RISK_RANK={low:0, medium:1, high:2};
+const RISK_LABEL={low:'Low', medium:'Medium', high:'High'};
+
+async function fetchLoopForecast(loop, days){
+  const url=`https://api.open-meteo.com/v1/forecast?latitude=${loop.lat}&longitude=${loop.lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&forecast_days=${days}&timezone=Africa%2FJohannesburg`;
+  const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
+  const j=await r.json(); const d=j.daily;
+  const rows=d.time.map((t,i)=>{
+    const rain=+d.precipitation_sum[i].toFixed(1);
+    const wind=Math.round(d.wind_speed_10m_max[i]);
+    const tmin=Math.round(d.temperature_2m_min[i]);
+    const tmax=Math.round(d.temperature_2m_max[i]);
+    return {t, rain, wind, tmin, tmax, level: wxRiskLevel(rain,wind,tmin,tmax)};
+  });
+  return {loop, dates:d.time, rows};
+}
+
+function renderRiskTrack(loopResults){
+  return `<div class="risktrack-wrap"><div class="risktrack">${loopResults.map(res=>{
+    const l=res.loop;
+    let cls='rl-low', label=l.port?'⚓':l.loop;
+    if(res.rows){
+      const worst=res.rows.reduce((w,r)=>RISK_RANK[r.level]>RISK_RANK[w]?r.level:w,'low');
+      cls='rl-'+worst;
+    } else cls='';
+    if(l.port) cls+=' rl-port';
+    return `<div class="rloop ${cls}"><div class="dot">${label}</div><div class="nm">${esc(l.name)}</div></div>`;
+  }).join('')}</div></div>`;
+}
+
+function renderWxTable(loopResults, dates, days){
+  const dayHead1 = dates.map((t,i)=>{
+    const dt=new Date(t+'T00:00:00');
+    const tag = i<15 ? 'IFS' : 'EC46';
+    return `<th colspan="3" class="daygrp">${dt.toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'})} <span style="opacity:.6">${tag}</span></th>`;
+  }).join('');
+  const dayHead2 = dates.map(()=>`<th class="daygrp">mm</th><th>km/h</th><th>°C range</th>`).join('');
+  const bodyRows = loopResults.map(res=>{
+    const l=res.loop;
+    if(!res.rows){
+      return `<tr><td class="loopcell">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${dates.map(()=>`<td class="daycell">—</td><td class="daycell">—</td><td class="daycell">—</td>`).join('')}<td class="riskcell"><span class="badge b-grey">no data</span></td></tr>`;
+    }
+    let worst='low';
+    const cells=res.rows.map(r=>{
+      if(RISK_RANK[r.level]>RISK_RANK[worst]) worst=r.level;
+      const cls = r.level==='high'?'red':(r.level==='medium'?'amber':'');
+      return `<td class="daycell ${cls}">${r.rain}</td><td class="daycell ${cls}">${r.wind}</td><td class="daycell ${cls}">${r.tmin}–${r.tmax}°</td>`;
+    }).join('');
+    const riskBadge = worst==='high'?'b-bad':(worst==='medium'?'b-warn':'b-grey');
+    return `<tr><td class="loopcell">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${cells}<td class="riskcell"><span class="badge ${riskBadge}">${RISK_LABEL[worst]}</span></td></tr>`;
+  }).join('');
+  return `<div class="wxtblwrap"><table class="wx">
+    <thead><tr><th class="loopcell" rowspan="2">Loop</th>${dayHead1}<th rowspan="2">Risk</th></tr><tr>${dayHead2}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table></div>`;
+}
+
+async function renderWeather(){
+  const el=$('#weatherRoot');
+  const days=Math.min(Math.max(FORECAST_DAYS,1),16);
+  el.innerHTML=`
+    <div class="wxlegend">
+      <b>Sources</b> — IFS HRES ECMWF 9 km (days 1–15) · EC46 ~ ECMWF ensemble mean, 36 km, indicative · ERA5 actual observed (via Open-Meteo)
+      <span class="sep">|</span>
+      <span class="lg-amber">Amber</span> = medium risk (wind 25–40 km/h · precip 4–10 mm/day · temp &lt;5°C or &gt;35°C)
+      <span class="sep">|</span>
+      <span class="lg-red">Red</span> = high risk (wind &gt;40 km/h · precip &gt;10 mm/day · temp &lt;0°C or &gt;40°C)
+    </div>
+    <div class="card">
+      <h2>Risk map <span class="hint">Sishen → Saldanha Bay · live weather risk by loop</span></h2>
+      <div id="wxTrack">${renderRiskTrack(WX_LOOPS.map(l=>({loop:l,rows:null})))}</div>
+    </div>
+    <div class="card">
+      <h2>Weather Watch — ${days}-day corridor forecast <span class="hint">per loop, per day</span></h2>
+      <div id="wxTableWrap" class="note">Loading forecast for ${WX_LOOPS.length} loops…</div>
+    </div>`;
+
+  const settled = await Promise.allSettled(WX_LOOPS.map(l=>fetchLoopForecast(l, days)));
+  const loopResults = settled.map((s,i)=> s.status==='fulfilled'? s.value : {loop:WX_LOOPS[i], rows:null});
+  const ok = loopResults.filter(r=>r.rows);
+
+  $('#wxTrack').innerHTML = renderRiskTrack(loopResults);
+
+  if(!ok.length){
+    $('#wxTableWrap').innerHTML = `<div class="note">Live forecast unavailable in this environment. When hosted, this table pulls a ${days}-day Open-Meteo forecast (precipitation, max wind speed, temperature range) for each of the ${WX_LOOPS.length} loops between Sishen and Saldanha Bay, risk-flagged per the legend above.</div>`;
+    return;
+  }
+  $('#wxTableWrap').innerHTML = renderWxTable(loopResults, ok[0].dates, days);
+}
+
+renderWeather();
+</script>
+</body>
+</html>
