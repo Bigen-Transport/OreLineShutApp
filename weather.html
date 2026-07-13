@@ -164,6 +164,19 @@ async function renderWeather(){
 }
 
 renderWeather();
+
+/* Tabs' sticky offset must match the appbar's *actual* rendered height —
+   it can wrap on narrow screens, so a hardcoded px value would leave the
+   tabs bar stuck underneath/behind it instead of right below it. */
+function syncAppbarHeight(){
+  const bar = document.querySelector('.appbar'); if(!bar) return;
+  document.documentElement.style.setProperty('--appbar-h', bar.offsetHeight+'px');
+}
+syncAppbarHeight();
+window.addEventListener('resize', ()=>{
+  clearTimeout(window.__appbarResizeT);
+  window.__appbarResizeT = setTimeout(syncAppbarHeight, 120);
+});
 </script>
 </body>
 </html>
