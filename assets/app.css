@@ -17,13 +17,13 @@
   --warn-bg:#FBF0DC;
   --bad-bg:#F9E4E2;
   --radius:10px;
-  --disp:'Barlow Condensed', 'Arial Narrow', sans-serif;
-  --body:'Barlow', 'Segoe UI', system-ui, sans-serif;
-  --mono:'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --disp:'Segoe UI Semibold', 'Segoe UI', sans-serif;
+  --body:'Segoe UI', sans-serif;
+  --mono:'Segoe UI', sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
-body{font-family:var(--body);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45}
+body{font-family:var(--body);background:var(--bg);color:var(--ink);font-size:12pt;line-height:1.45}
 button{font-family:var(--body);cursor:pointer}
 input,select,textarea{font-family:var(--body);font-size:14px}
 :focus-visible{outline:3px solid var(--ore);outline-offset:2px}
