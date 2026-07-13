@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="assets/app.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -22,11 +23,24 @@
     <span class="sub" id="subTitle">SISHEN–SALDANHA · OCT 2026 · 10-DAY POSSESSION</span>
   </div>
   <div class="spacer"></div>
-  <span class="rolechip" id="roleChip">Programme Admin</span>
-  <select id="roleSelect" aria-label="Signed-in role (demo)"></select>
+  <span class="rolechip" id="roleChip">View only</span>
+  <span id="authArea"></span>
   <button class="btn-ghost" id="btnExport">Export</button>
-  <button class="btn-ghost" id="btnImport">Import</button>
-  <input type="file" id="importFile" accept=".json" style="display:none">
+</div>
+
+<div class="modal-backdrop" id="loginBackdrop" style="display:none">
+  <div class="modal card" id="loginModal">
+    <h2>Sign in</h2>
+    <div class="frow">
+      <label>Email<input type="email" id="loginEmail" autocomplete="username"></label>
+      <label>Password<input type="password" id="loginPassword" autocomplete="current-password"></label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn" id="btnDoLogin">Sign in</button>
+      <button class="btn sec" id="btnCancelLogin">Cancel</button>
+    </div>
+    <div class="note" id="loginError" style="color:var(--bad);margin-top:8px"></div>
+  </div>
 </div>
 
 <div class="daystrip-wrap">
@@ -101,91 +115,75 @@ function dayDate(i){ const d=new Date(state.meta.startDate+'T00:00:00'); d.setDa
 function fmtDay(i){ return dayDate(i).toLocaleDateString('en-ZA',{day:'2-digit',month:'short'}); }
 function fmtDow(i){ return dayDate(i).toLocaleDateString('en-ZA',{weekday:'short'}); }
 
-/* ---------- Seed data (demo — clear from Setup) ---------- */
-function K(name, workType, unit, targets, actuals, dev){
-  return { id:uid(), name, workType, unit,
-    targets: targets.slice(0,10),
-    actuals: (actuals||[]).concat(Array(10).fill(null)).slice(0,10),
-    dev: dev||{}, photos: [] };
-}
-const U = v => Array(10).fill(v); // uniform daily target
+/* ---------- Supabase backend ---------- */
+/* Replace these two with your project's values (Project Settings > API),
+   then run supabase/schema.sql once in the SQL Editor. See supabase/README.md. */
+const SUPABASE_URL = 'https://yhqkderdncspjzhcjwan.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_YZCjNIHUXlwEATGe8xrKAw__HwjUuM-';
+const supabaseConfigured = /^https:\/\//.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 20;
+const sb = (supabaseConfigured && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
 
-function seedState(){
-  return {
-    meta:{ name:'Ore Line Annual Maintenance Shutdown', corridor:'Sishen–Saldanha (861 km)', startDate:'2026-10-05', days:10, demo:true },
-    charts:{ scope:'ALL', series:'cum', compare:'' },
-    divisions:[
-      { id:'TRIM', name:'Transnet Rail Infrastructure Manager', color:'#2F5D8A', disciplines:[
-        { id:uid(), name:'Track (Perway)', kpis:[
-          K('Rail replacement','Renewal','km', U(3.6), [3.6,3.4,3.8,2.9,3.6,3.7], {3:{cat:'Logistics / delivery',reason:'Rail train late ex Salkor yard; 0.7 km carried to Day 5 catch-up plan.'}}),
-          K('Sleeper replacement','Renewal','no.', U(1800), [1820,1795,1810,1760,1840,1815], {3:{cat:'On-track machine breakdown',reason:'Sleeper gantry hydraulic failure 2h; recovered same shift.'}}),
-          K('Turnout replacement','Renewal','no.', [1,1,1,1,1,1,1,1,0,0], [1,1,1,1,1,1]),
-          K('Tamping (production)','Maintenance','km', U(8), [8.2,7.9,8.1,6.4,8.0,8.3], {3:{cat:'On-track machine breakdown',reason:'09-3X tamper lining unit fault; standby machine mobilised from Salkor.'}}),
-          K('Formation repair sites','Rehabilitation','sites', U(2), [2,2,1,2,2,2], {2:{cat:'Weather',reason:'Rain at Loop 12 — earthworks compaction failed density test, redone Day 4.'}}),
-        ]},
-        { id:uid(), name:'OHTE (Electrical)', kpis:[
-          K('Contact wire renewal','Renewal','km', U(2.8), [2.8,2.9,2.6,2.8,1.9,2.7], {4:{cat:'Security / theft & vandalism',reason:'Overnight theft of dropper/return conductor at km 384; team diverted to make safe.'}}),
-          K('Mast & cantilever replacement','Renewal','no.', U(6), [6,6,5,6,6,7], {2:{cat:'Material availability',reason:'One cantilever assembly short-supplied; fitted Day 6.'}}),
-          K('Section insulator replacement','Maintenance','no.', U(4), [4,4,4,4,3,4], {4:{cat:'Weather',reason:'Wind gusts >60 km/h — elevated work suspended 3h.'}}),
-        ]},
-        { id:uid(), name:'Signalling & Telecoms', kpis:[
-          K('Points machine overhauls','Maintenance','no.', U(5), [5,5,5,5,5,4], {5:{cat:'Security / theft & vandalism',reason:'Cable theft at Loop 9 discovered on test; repair splice added to Day 7 scope.'}}),
-          K('Cable route repairs','Rehabilitation','m', U(400), [420,400,380,410,400,430]),
-        ]},
-        { id:uid(), name:'Structures', kpis:[
-          K('Culvert repairs','Rehabilitation','no.', [2,2,2,2,2,2,2,2,1,1], [2,2,2,2,2,2]),
-          K('Bridge bearing replacements','Renewal','no.', [0,1,1,1,1,1,1,1,1,0], [0,1,1,1,1,1]),
-        ]},
-      ]},
-      { id:'TE', name:'Transnet Engineering', color:'#8A4B12', disciplines:[
-        { id:uid(), name:'Wagon Maintenance (Salkor)', kpis:[
-          K('CR13/14 wagon general overhaul','Maintenance','wagons', U(24), [24,25,23,24,24,22], {5:{cat:'Material availability',reason:'CPSA knuckle stock-out; 2 wagons held awaiting couplers.'}}),
-          K('Wheelset changes','Maintenance','sets', U(30), [31,30,29,30,32,30]),
-          K('Drawgear / knuckle replacements','Maintenance','no.', U(40), [42,40,38,41,40,33], {5:{cat:'Material availability',reason:'Knuckle supply constraint — CPSA delivery rescheduled to Day 7.'}}),
-        ]},
-        { id:uid(), name:'Locomotives (15E fleet)', kpis:[
-          K('15E scheduled services','Maintenance','locos', U(3), [3,3,3,3,3,3]),
-          K('Traction motor changes','Maintenance','no.', [1,1,1,1,1,1,1,1,1,1], [1,1,1,1,1,1]),
-        ]},
-      ]},
-      { id:'TPT', name:'Transnet Port Terminals (Saldanha)', color:'#0F766E', disciplines:[
-        { id:uid(), name:'Tippler Complex', kpis:[
-          K('Tippler 1 refurbishment tasks','Maintenance','tasks', U(12), [12,12,11,12,12,12], {2:{cat:'Plant / equipment breakdown',reason:'Ring gear crack found on inspection — NDT and repair added to plan.'}}),
-          K('Tippler 2 refurbishment tasks','Maintenance','tasks', U(10), [10,10,10,9,10,10]),
-        ]},
-        { id:uid(), name:'Shiploaders & Stackers', kpis:[
-          K('SL2 gearbox replacement tasks','Renewal','tasks', U(8), [8,8,8,8,6,8], {4:{cat:'Weather',reason:'Wind gusts 68 km/h at berth — crane lift for gearbox postponed to Day 6 morning.'}}),
-          K('SR3 boom refurbishment tasks','Rehabilitation','tasks', U(9), [9,9,9,9,9,9]),
-        ]},
-        { id:uid(), name:'Conveyors', kpis:[
-          K('Belt splices completed','Maintenance','no.', U(4), [4,4,4,4,4,4]),
-          K('Idler replacements','Maintenance','no.', U(120), [124,120,118,122,119,121]),
-        ]},
-      ]},
-    ]
-  };
-}
-
-/* ---------- State & persistence ---------- */
-let state = seedState();
-let role = ROLES[0];
-let selectedDay = 5; // 0-based; demo data populated Days 1–6
+/* ---------- State ---------- */
+let state = { meta:{ name:'', corridor:'', startDate:'2026-01-01', days:10, demo:false }, charts:{ scope:'ALL', series:'cum', compare:'' }, divisions:[] };
+let role = ROLES.find(r=>r.id==='cust');
+let currentUser = null, currentProfile = null;
+let selectedDay = 0;
 const ui = { openDiv:new Set(['TRIM']), openDisc:new Set(), openKpi:new Set(), photoDiv:'', photoDay:'' };
-let persistence = 'memory';
 
-async function saveState(){
-  try{
-    if(window.storage){ await window.storage.set('ore-shutdown-oct26', JSON.stringify(state)); persistence='saved'; return; }
-  }catch(e){ /* fall through */ }
-  persistence = 'memory';
+function roleFromProfile(profile){
+  return ROLES.find(r=>r.id===profile?.role) || ROLES.find(r=>r.id==='cust');
 }
-async function loadState(){
-  try{
-    if(window.storage){
-      const r = await window.storage.get('ore-shutdown-oct26');
-      if(r && r.value){ state = JSON.parse(r.value); persistence='saved'; }
-    }
-  }catch(e){ /* no stored copy yet */ }
+async function refreshAuth(){
+  if(!sb) return;
+  const { data:{ user } } = await sb.auth.getUser();
+  currentUser = user || null;
+  if(currentUser){
+    const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    currentProfile = data || null;
+  } else currentProfile = null;
+  role = roleFromProfile(currentProfile);
+}
+
+/* ---------- Fetch shared state from Supabase ---------- */
+async function fetchState(){
+  const [{data:meta,error:e1}, {data:divisions,error:e2}, {data:disciplines,error:e3},
+         {data:kpis,error:e4}, {data:actuals,error:e5}, {data:deviations,error:e6}, {data:photos,error:e7}] = await Promise.all([
+    sb.from('report_meta').select('*').eq('id',1).single(),
+    sb.from('divisions').select('*').order('sort_order'),
+    sb.from('disciplines').select('*').order('sort_order'),
+    sb.from('kpis').select('*').order('sort_order'),
+    sb.from('kpi_actuals').select('*'),
+    sb.from('kpi_deviations').select('*'),
+    sb.from('kpi_photos').select('*').order('created_at'),
+  ]);
+  const firstError = e1||e2||e3||e4||e5||e6||e7;
+  if(firstError) throw firstError;
+
+  const actualsByKpi={}; (actuals||[]).forEach(a=>{ (actualsByKpi[a.kpi_id] ||= {})[a.day]=a.value; });
+  const devByKpi={}; (deviations||[]).forEach(d=>{ (devByKpi[d.kpi_id] ||= {})[d.day]={cat:d.category, reason:d.reason}; });
+  const photosByKpi={}; (photos||[]).forEach(p=>{
+    const { data:pub } = sb.storage.from('kpi-photos').getPublicUrl(p.storage_path);
+    (photosByKpi[p.kpi_id] ||= []).push({ id:p.id, day:p.day, dataUrl:pub.publicUrl, lat:p.lat, lon:p.lon, caption:p.caption, ts:p.created_at, gpsSource:p.gps_source });
+  });
+
+  const days = meta.days;
+  const kpisByDisc={};
+  (kpis||[]).forEach(k=>{
+    const targets=(k.targets||[]).slice(0,days); while(targets.length<days) targets.push(0);
+    const actualsArr=Array.from({length:days},(_,d)=>{ const v=(actualsByKpi[k.id]||{})[d]; return v===undefined?null:v; });
+    (kpisByDisc[k.discipline_id] ||= []).push({ id:k.id, name:k.name, workType:k.work_type, unit:k.unit, targets, actuals:actualsArr, dev:devByKpi[k.id]||{}, photos:photosByKpi[k.id]||[] });
+  });
+  const discByDiv={};
+  (disciplines||[]).forEach(dc=>{ (discByDiv[dc.division_id] ||= []).push({ id:dc.id, name:dc.name, kpis:kpisByDisc[dc.id]||[] }); });
+  const divisionsOut=(divisions||[]).map(dv=>({ id:dv.id, name:dv.name, color:dv.color, disciplines:discByDiv[dv.id]||[] }));
+
+  return {
+    meta:{ name:meta.name, corridor:meta.corridor, startDate:meta.start_date, days:meta.days, demo:meta.demo },
+    charts: state.charts || { scope:'ALL', series:'cum', compare:'' },
+    divisions: divisionsOut,
+  };
 }
 
 /* ---------- Permissions ---------- */
@@ -460,22 +458,30 @@ window.toggleDiv = id => { ui.openDiv.has(id)? ui.openDiv.delete(id): ui.openDiv
 window.toggleDisc = id => { ui.openDisc.has(id)? ui.openDisc.delete(id): ui.openDisc.add(id); renderDrill(); };
 window.toggleKpi = id => { ui.openKpi.has(id)? ui.openKpi.delete(id): ui.openKpi.add(id); renderDrill(); };
 function findKpi(id){ let hit=null; allKpis().forEach(x=>{ if(x.kpi.id===id) hit=x; }); return hit; }
-window.setActual = (kid, d, val) => {
+window.setActual = async (kid, d, val) => {
   const x=findKpi(kid); if(!x) return;
   if(!canEdit(x.div.id)){ toast('View-only access for '+x.div.id); renderDrill(); return; }
-  x.kpi.actuals[d] = val===''? null : +val;
-  saveState(); renderDaystrip(); renderDrill(); if($('#tab-overview').style.display!=='none') renderOverview();
+  const value = val===''? null : +val;
+  const prev = x.kpi.actuals[d];
+  x.kpi.actuals[d] = value; // optimistic
+  renderDaystrip(); renderDrill(); if($('#tab-overview').style.display!=='none') renderOverview();
+  const { error } = await sb.from('kpi_actuals').upsert({ kpi_id:kid, day:d, value, updated_by: currentUser?.id||null });
+  if(error){ x.kpi.actuals[d]=prev; toast('Save failed: '+error.message); renderDaystrip(); renderDrill(); }
 };
-window.addDev = (divId, kid, d) => {
+window.addDev = async (divId, kid, d) => {
   const x=findKpi(kid); if(!x || !canEdit(divId)) return;
   const cat=$('#devcat-'+kid).value, reason=$('#devtxt-'+kid).value.trim();
   if(!reason){ toast('Enter a reason before logging.'); return; }
+  const { error } = await sb.from('kpi_deviations').upsert({ kpi_id:kid, day:d, category:cat, reason, updated_by: currentUser?.id||null });
+  if(error){ toast('Save failed: '+error.message); return; }
   x.kpi.dev = x.kpi.dev||{}; x.kpi.dev[d]={cat, reason};
-  saveState(); renderDrill(); toast('Deviation logged.');
+  renderDrill(); toast('Deviation logged.');
 };
-window.clearDev = (kid, d) => {
+window.clearDev = async (kid, d) => {
   const x=findKpi(kid); if(!x || !canEdit(x.div.id)) return;
-  delete x.kpi.dev[d]; saveState(); renderDrill();
+  const { error } = await sb.from('kpi_deviations').delete().eq('kpi_id',kid).eq('day',d);
+  if(error){ toast('Remove failed: '+error.message); return; }
+  delete x.kpi.dev[d]; renderDrill();
 };
 </script>
 <script>
@@ -511,39 +517,28 @@ photoInput.addEventListener('change', ()=>{
 function attachPhoto(dataUrl){
   const x=findKpi(photoTargetKpi); if(!x) return;
   const caption = prompt('Caption / location description (e.g. "Rail weld km 412, Loop 11")') || 'Site photo';
-  const finish=(lat,lon,src)=>{
-    x.kpi.photos=x.kpi.photos||[];
-    x.kpi.photos.push({day:selectedDay, dataUrl, lat, lon, caption, ts:new Date().toISOString(), gpsSource:src});
-    saveState(); renderDrill(); toast(lat!=null? 'Photo saved with GPS position.':'Photo saved — no GPS available; add coordinates on the Photos tab if needed.');
+  const finish=async (lat,lon,src)=>{
+    try{
+      const blob = await (await fetch(dataUrl)).blob();
+      const path = `${photoTargetKpi}/${selectedDay}-${Date.now()}.jpg`;
+      const { error: upErr } = await sb.storage.from('kpi-photos').upload(path, blob, { contentType:'image/jpeg' });
+      if(upErr) throw upErr;
+      const { error: insErr } = await sb.from('kpi_photos').insert({
+        kpi_id: photoTargetKpi, day: selectedDay, storage_path: path,
+        lat, lon, caption, gps_source: src, created_by: currentUser?.id||null
+      });
+      if(insErr) throw insErr;
+      const { data:pub } = sb.storage.from('kpi-photos').getPublicUrl(path);
+      x.kpi.photos = x.kpi.photos||[];
+      x.kpi.photos.push({day:selectedDay, dataUrl:pub.publicUrl, lat, lon, caption, ts:new Date().toISOString(), gpsSource:src});
+      renderDrill(); toast(lat!=null? 'Photo saved with GPS position.':'Photo saved — no GPS available; add coordinates on the Photos tab if needed.');
+    }catch(e){ toast('Photo upload failed: '+e.message); }
   };
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
       pos=>finish(pos.coords.latitude, pos.coords.longitude, 'device'),
       ()=>finish(null,null,'none'), {enableHighAccuracy:true, timeout:6000});
   } else finish(null,null,'none');
-}
-
-/* demo placeholder photos so the map and gallery show the concept */
-function seedDemoPhotos(){
-  if(!state.meta.demo) return;
-  const spots=[
-    {q:'TRIM', kpiName:'Rail replacement', cap:'Rail renewal — km 214 (Loop 6)', lat:-29.1210, lon:20.1550, day:2, col:'#2F5D8A'},
-    {q:'TRIM', kpiName:'Contact wire renewal', cap:'OHTE theft make-safe — km 384', lat:-30.5410, lon:18.0620, day:4, col:'#8A4B12'},
-    {q:'TPT', kpiName:'SL2 gearbox replacement tasks', cap:'SL2 gearbox lift, Berth 401', lat:-33.0350, lon:17.9720, day:5, col:'#0F766E'},
-  ];
-  spots.forEach(s=>{
-    const hit = allKpis(s.q).find(x=>x.kpi.name===s.kpiName);
-    if(!hit || (hit.kpi.photos||[]).length) return;
-    const cv=document.createElement('canvas'); cv.width=640; cv.height=420;
-    const g=cv.getContext('2d');
-    g.fillStyle='#1C3A52'; g.fillRect(0,0,640,420);
-    g.fillStyle=s.col; g.fillRect(0,340,640,80);
-    g.strokeStyle='#5A6672'; g.lineWidth=3;
-    for(let i=0;i<9;i++){ g.beginPath(); g.moveTo(40+i*70,340); g.lineTo(90+i*70,80); g.stroke(); }
-    g.fillStyle='#EDEFF1'; g.font='600 26px Arial'; g.fillText('DEMO PHOTO', 30, 50);
-    g.font='400 20px Arial'; g.fillText(s.cap, 30, 395);
-    hit.kpi.photos=[{day:s.day, dataUrl:cv.toDataURL('image/jpeg',0.7), lat:s.lat, lon:s.lon, caption:s.cap, ts:new Date().toISOString(), gpsSource:'demo'}];
-  });
 }
 
 /* ---------- Photos tab ---------- */
@@ -724,7 +719,7 @@ function renderSetup(){
     <div class="tblwrap"><table class="data"><thead><tr><th>OD</th><th>Discipline</th><th>KPI</th><th class="num">Total target</th><th></th></tr></thead><tbody>${kpiRows}</tbody></table></div>
   </div>
   <div class="card">
-    <h2>Access model <span class="hint">enforced by role in this prototype; by Entra ID groups in production</span></h2>
+    <h2>Access model <span class="hint">enforced server-side by Supabase Row Level Security, keyed off each signed-in user's profile role</span></h2>
     <div class="tblwrap"><table class="data accessgrid"><thead><tr><th>Role</th><th>TRIM</th><th>TE</th><th>TPT</th><th>Setup</th></tr></thead><tbody>
     ${ROLES.map(r=>`<tr><td>${esc(r.name)}</td>${['TRIM','TE','TPT'].map(d=>`<td><span class="pill ${r.edit.includes(d)?'edit':'view'}">${r.edit.includes(d)?'edit':'view'}</span></td>`).join('')}<td><span class="pill ${r.setup?'edit':'none'}">${r.setup?'yes':'no'}</span></td></tr>`).join('')}
     </tbody></table></div>
@@ -737,56 +732,70 @@ function renderSetup(){
       <button class="btn sec" onclick="saveMeta()">Save settings</button>
       ${state.meta.demo? `<button class="btn danger" onclick="clearDemo()">Clear demo actuals & photos</button>`:''}
     </div>
-    <div class="note">Sharing: use Export to download the report state as JSON and Import to load it on another device. In the Microsoft 365 production build this is replaced by a shared SharePoint list — see the deployment note at the foot of the page.</div>
+    <div class="note">Sharing: everyone viewing this page reads the same live Supabase-backed data — nothing to export/import. Use Export (top bar) only if you want a one-off JSON snapshot. To invite a new editor, see <a href="supabase/README.md">supabase/README.md</a>.</div>
   </div>`;
   $('#nkDiv').onchange=e=>{ const dv=state.divisions.find(d=>d.id===e.target.value); $('#nkDisc').innerHTML=discOptions(dv); };
 }
-window.addKpi=()=>{
+window.addKpi=async ()=>{
   const dv=state.divisions.find(d=>d.id===$('#nkDiv').value);
   const dc=dv.disciplines.find(x=>x.id===$('#nkDisc').value);
   const name=$('#nkName').value.trim(); if(!name){ toast('Give the KPI a name.'); return; }
   const unit=$('#nkUnit').value.trim()||'no.';
   const uniform=parseFloat($('#nkTarget').value);
-  const targets=Array.from({length:10},(_,i)=>{
+  const targets=Array.from({length:state.meta.days},(_,i)=>{
     const v=parseFloat($('#nkT'+i).value);
     return isNaN(v)? (isNaN(uniform)?0:uniform) : v;
   });
-  dc.kpis.push({id:uid(), name, workType:$('#nkType').value, unit, targets, actuals:Array(10).fill(null), dev:{}, photos:[]});
-  saveState(); renderSetup(); renderDrill(); toast('KPI added to '+dv.id+' / '+dc.name+'.');
+  const { error } = await sb.from('kpis').insert({ discipline_id:dc.id, name, work_type:$('#nkType').value, unit, targets, sort_order: dc.kpis.length+1 });
+  if(error){ toast('Add failed: '+error.message); return; }
+  state = await fetchState(); renderSetup(); renderDrill(); toast('KPI added to '+dv.id+' / '+dc.name+'.');
 };
-window.addDisc=()=>{
+window.addDisc=async ()=>{
   const dv=state.divisions.find(d=>d.id===$('#ndDiv').value);
   const name=$('#ndName').value.trim(); if(!name){ toast('Give the discipline a name.'); return; }
-  dv.disciplines.push({id:uid(), name, kpis:[]});
-  saveState(); renderSetup(); renderDrill(); toast('Discipline added.');
+  const { error } = await sb.from('disciplines').insert({ division_id:dv.id, name, sort_order: dv.disciplines.length+1 });
+  if(error){ toast('Add failed: '+error.message); return; }
+  state = await fetchState(); renderSetup(); renderDrill(); toast('Discipline added.');
 };
-window.delKpi=id=>{
+window.delKpi=async id=>{
   if(!confirm('Delete this KPI and all its data?')) return;
-  state.divisions.forEach(dv=>dv.disciplines.forEach(dc=>{ dc.kpis=dc.kpis.filter(k=>k.id!==id); }));
-  saveState(); renderSetup(); renderDrill();
+  const { error } = await sb.from('kpis').delete().eq('id', id);
+  if(error){ toast('Delete failed: '+error.message); return; }
+  state = await fetchState(); renderSetup(); renderDrill();
 };
-window.editTargets=id=>{
+window.editTargets=async id=>{
   const x=findKpi(id); if(!x) return;
   const cur=x.kpi.targets.join(', ');
-  const v=prompt('Targets per day (10 comma-separated values) for "'+x.kpi.name+'"', cur);
+  const v=prompt('Targets per day ('+state.meta.days+' comma-separated values) for "'+x.kpi.name+'"', cur);
   if(v==null) return;
   const arr=v.split(',').map(s=>parseFloat(s.trim())||0);
-  x.kpi.targets=arr.concat(Array(10).fill(0)).slice(0,10);
-  saveState(); renderSetup(); renderDrill(); toast('Targets updated.');
+  const targets=arr.concat(Array(state.meta.days).fill(0)).slice(0,state.meta.days);
+  const { error } = await sb.from('kpis').update({ targets }).eq('id', id);
+  if(error){ toast('Update failed: '+error.message); return; }
+  x.kpi.targets=targets; renderSetup(); renderDrill(); toast('Targets updated.');
 };
-window.saveMeta=()=>{
-  state.meta.name=$('#mName').value.trim()||state.meta.name;
-  state.meta.startDate=$('#mStart').value||state.meta.startDate;
-  saveState(); renderAll(); toast('Settings saved.');
+window.saveMeta=async ()=>{
+  const name=$('#mName').value.trim()||state.meta.name;
+  const startDate=$('#mStart').value||state.meta.startDate;
+  const { error } = await sb.from('report_meta').update({ name, start_date:startDate, updated_by: currentUser?.id||null }).eq('id',1);
+  if(error){ toast('Save failed: '+error.message); return; }
+  state.meta.name=name; state.meta.startDate=startDate;
+  renderAll(); toast('Settings saved.');
 };
-window.clearDemo=()=>{
-  if(!confirm('Clear all demo actuals, deviations and photos? Targets and KPI structure are kept.')) return;
-  allKpis().forEach(({kpi})=>{ kpi.actuals=Array(10).fill(null); kpi.dev={}; kpi.photos=[]; });
-  state.meta.demo=false; selectedDay=0;
-  saveState(); renderAll(); toast('Demo data cleared — ready for live reporting.');
+window.clearDemo=async ()=>{
+  if(!confirm('Clear all actuals, deviations and photos? Targets and KPI structure are kept.')) return;
+  const kpiIds = allKpis().map(({kpi})=>kpi.id);
+  const { error:e1 } = await sb.from('kpi_actuals').delete().in('kpi_id', kpiIds);
+  const { error:e2 } = await sb.from('kpi_deviations').delete().in('kpi_id', kpiIds);
+  const { error:e3 } = await sb.from('kpi_photos').delete().in('kpi_id', kpiIds);
+  const { error:e4 } = await sb.from('report_meta').update({ demo:false }).eq('id',1);
+  const err = e1||e2||e3||e4;
+  if(err){ toast('Clear failed: '+err.message); return; }
+  selectedDay=0;
+  state = await fetchState(); renderAll(); toast('Demo data cleared — ready for live reporting.');
 };
 
-/* ---------- Export / import ---------- */
+/* ---------- Export ---------- */
 $('#btnExport').onclick=()=>{
   const blob=new Blob([JSON.stringify(state,null,1)],{type:'application/json'});
   const a=document.createElement('a');
@@ -794,23 +803,46 @@ $('#btnExport').onclick=()=>{
   a.download='ore-line-shutdown-'+new Date().toISOString().slice(0,10)+'.json';
   a.click(); URL.revokeObjectURL(a.href);
 };
-$('#btnImport').onclick=()=>$('#importFile').click();
-$('#importFile').addEventListener('change',e=>{
-  const f=e.target.files[0]; if(!f) return;
-  const rd=new FileReader();
-  rd.onload=()=>{ try{ state=JSON.parse(rd.result); saveState(); renderAll(); toast('Report imported.'); }catch(err){ toast('Import failed — not a valid report file.'); } };
-  rd.readAsText(f);
-});
 
-/* ---------- Roles & tabs ---------- */
+/* ---------- Auth ---------- */
 function renderRole(){
-  const sel=$('#roleSelect');
-  sel.innerHTML=ROLES.map(r=>`<option value="${r.id}" ${r.id===role.id?'selected':''}>${esc(r.name)}</option>`).join('');
   const chip=$('#roleChip');
   chip.textContent = role.edit.length? (role.setup? 'Edit all + setup':'Edit: '+role.edit.join(', ')) : 'View only';
   chip.className='rolechip'+(role.edit.length?'':' viewonly');
 }
-$('#roleSelect').addEventListener('change',e=>{ role=ROLES.find(r=>r.id===e.target.value); renderAll(); toast('Now viewing as: '+role.name); });
+function renderAuthArea(){
+  const el=$('#authArea'); if(!el) return;
+  if(!sb){ el.innerHTML=''; return; }
+  if(currentUser){
+    el.innerHTML = `<span class="authchip">${esc(currentUser.email)}</span><button class="btn-ghost" id="btnSignOut">Sign out</button>`;
+    $('#btnSignOut').onclick = async ()=>{ await sb.auth.signOut(); };
+  } else {
+    el.innerHTML = `<button class="btn-ghost" id="btnSignIn">Sign in</button>`;
+    $('#btnSignIn').onclick = ()=>{ $('#loginBackdrop').style.display='flex'; $('#loginEmail').focus(); };
+  }
+}
+$('#btnCancelLogin').onclick=()=>{ $('#loginBackdrop').style.display='none'; $('#loginError').textContent=''; };
+$('#btnDoLogin').onclick=async ()=>{
+  const email=$('#loginEmail').value.trim(), password=$('#loginPassword').value;
+  if(!email || !password){ $('#loginError').textContent='Enter both email and password.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ $('#loginError').textContent=error.message; return; }
+  $('#loginBackdrop').style.display='none';
+  $('#loginEmail').value=''; $('#loginPassword').value=''; $('#loginError').textContent='';
+};
+if(sb){
+  sb.auth.onAuthStateChange(async (_event, session)=>{
+    currentUser = session?.user || null;
+    if(currentUser){
+      const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      currentProfile = data || null;
+    } else currentProfile = null;
+    role = roleFromProfile(currentProfile);
+    renderAuthArea(); renderAll();
+  });
+}
+
+/* ---------- Tabs ---------- */
 
 const TAB_NAMES=['overview','drill','charts','photos','setup'];
 function tabFromHash(){
@@ -841,24 +873,53 @@ window.addEventListener('hashchange',()=>{ activeTab=tabFromHash(); applyActiveT
   document.addEventListener('change',e=>{
     if(e.target.id!==id) return;
     state.charts[{cScope:'scope',cSeries:'series',cCompare:'compare'}[id]]=e.target.value;
-    saveState(); drawMainChart();
+    drawMainChart();
   });
 });
 
+/* ---------- Realtime — keep all clients in sync ---------- */
+let realtimeChannel=null, remoteRefreshTimer=null;
+function subscribeRealtime(){
+  if(!sb || realtimeChannel) return;
+  realtimeChannel = sb.channel('report-changes');
+  ['kpi_actuals','kpi_deviations','kpi_photos','kpis','disciplines','report_meta'].forEach(table=>{
+    realtimeChannel.on('postgres_changes', {event:'*', schema:'public', table}, ()=>{
+      clearTimeout(remoteRefreshTimer);
+      remoteRefreshTimer = setTimeout(async ()=>{
+        try{ state = await fetchState(); renderAll(); }catch(e){ /* transient — next change retries */ }
+      }, 350);
+    });
+  });
+  realtimeChannel.subscribe();
+}
+
 /* ---------- Boot ---------- */
 function renderAll(){
-  renderRole(); renderDaystrip(); applyActiveTab();
-  $('#subTitle').textContent = (state.meta.corridor||'').toUpperCase()+' · OCT 2026 · '+state.meta.days+'-DAY POSSESSION';
+  renderRole(); renderAuthArea(); renderDaystrip(); applyActiveTab();
+  $('#subTitle').textContent = (state.meta.corridor||'').toUpperCase()+' · '+state.meta.days+'-DAY POSSESSION';
   renderActiveTab();
-  $('#foot').innerHTML = `Prototype build · daily shutdown reporting for TRIM / TE / TPT and mine customers · state ${persistence==='saved'?'auto-saves in this browser':'held in memory — use Export to keep a copy'} · production deployment: SharePoint List + Power Apps + Power BI inside Transnet M365, with Entra B2B guest access for customers. Weather risk reporting for the corridor now lives on its own <a href="weather.html" style="color:inherit">WeatherWatch page</a>.`;
+  $('#foot').innerHTML = `Live shutdown reporting for TRIM / TE / TPT and mine customers, backed by Supabase — edits save immediately and sync to everyone viewing the report. Weather risk reporting for the corridor lives on its own <a href="weather.html">WeatherWatch page</a>. See <a href="supabase/README.md">supabase/README.md</a> to invite editors.`;
+}
+function showSetupNeeded(msg){
+  const note=$('#offlineNote');
+  note.style.display='block'; note.textContent=msg;
+  renderAuthArea();
+  $('#foot').innerHTML = 'Backend not connected — see <a href="supabase/README.md">supabase/README.md</a> for setup steps.';
 }
 (async function init(){
-  await loadState();
-  seedDemoPhotos();
-  const note=$('#offlineNote');
-  if(persistence!=='saved'){ note.style.display='block'; note.textContent='Note: persistent storage is not available in this environment, so entries live in memory for this session. Use Export / Import in the top bar to save and share the report.'; }
+  if(!sb){
+    showSetupNeeded('Supabase is not configured yet — paste your Project URL and anon key into the SUPABASE_URL / SUPABASE_ANON_KEY constants near the top of the script, then run supabase/schema.sql in the SQL Editor.');
+    return;
+  }
+  try{
+    await refreshAuth();
+    state = await fetchState();
+  }catch(e){
+    showSetupNeeded('Could not reach Supabase (' + e.message + '). Check SUPABASE_URL/SUPABASE_ANON_KEY and that supabase/schema.sql has been run.');
+    return;
+  }
   renderAll();
-  saveState();
+  subscribeRealtime();
 })();
 </script>
 </body>

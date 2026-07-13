@@ -190,3 +190,10 @@ table.wx td.riskcell{text-align:center}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--steel);color:#fff;padding:10px 18px;border-radius:8px;font-size:13.5px;z-index:2000;display:none;max-width:90vw}
 .offline-note{background:var(--warn-bg);border:1px solid var(--warn);color:#5E3B02;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
 footer{max-width:1180px;margin:0 auto;padding:0 14px 30px;font-size:11.5px;color:var(--ink-2);font-family:var(--mono)}
+footer a{color:inherit}
+
+/* ---------- Auth ---------- */
+.modal-backdrop{position:fixed;inset:0;background:rgba(15,36,54,.55);display:flex;align-items:center;justify-content:center;z-index:3000;padding:16px}
+.modal{width:100%;max-width:360px}
+.modal h2{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;margin-bottom:14px}
+.authchip{font-family:var(--mono);font-size:11.5px;color:#C9D2DA;margin-right:6px}
