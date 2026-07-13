@@ -5,7 +5,7 @@ This app is backed by a Supabase project (Postgres + Auth + Storage). One-time s
 ## 1. Create the project
 1. [supabase.com](https://supabase.com) → New Project.
 2. Once provisioned, go to **Project Settings → API** and copy the **Project URL** and **anon public** key.
-3. Paste those into `ore-line-shutdown.html` (and `weather.html` is unaffected — it doesn't need a login), replacing the two placeholder constants near the top of the last `<script>` block:
+3. Paste those into `index.html` (and `weather.html` is unaffected — it doesn't need a login), replacing the two placeholder constants near the top of the last `<script>` block:
    ```js
    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
@@ -26,6 +26,18 @@ There's no self-service sign-up flow in the app. To add someone:
    - `exec` / `cust` — view only.
 
 That's it — the person signs in via the "Sign in" button in the app bar and their role takes effect immediately.
+
+## Current team roster
+Set up via the steps above (passwords are not recorded here — reset via **Authentication → Users → ... → Send password recovery** if needed):
+
+| Email | Role |
+|---|---|
+| Stefan.Knoblauch@bigengroup.com | `admin` — approves/edits everything, Setup access |
+| Vrishnee.Maharaj@transnet.net | `trim` — edits TRIM actuals/deviations/photos |
+| Carols.Engelsman@transnet.net | `tpt` — edits TPT actuals/deviations/photos |
+| Ivor.Blaau@transnet.net | `te` — edits TE actuals/deviations/photos |
+
+Everyone else (no login required) gets view-only access.
 
 ## What's enforced where
 - **Read access** is public (no login needed) — matches the original "view-only roles" behaviour for execs/customers.
