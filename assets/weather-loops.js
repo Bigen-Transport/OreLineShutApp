@@ -36,6 +36,11 @@ const WX_LOOPS=[
 function wxLoopId(l){ return l.loop==null ? 'SALDANHA' : String(l.loop); }
 function wxLoopById(id){ return WX_LOOPS.find(l=>wxLoopId(l)===String(id)); }
 function wxLoopLabel(id){ const l=wxLoopById(id); if(!l) return id; return l.loop!=null? `L${l.loop} ${l.name}` : l.name; }
+/* "L15 Oorkruis" for a single point, "L14 Rugseer – L12 Kolke" for a section. */
+function wxSectionLabel(fromId, toId){
+  if(!fromId) return '';
+  return (!toId || fromId===toId) ? wxLoopLabel(fromId) : `${wxLoopLabel(fromId)} – ${wxLoopLabel(toId)}`;
+}
 
 /* Inclusive range of loops between two loop ids, in corridor order —
    used to resolve a TRIM KPI's "section" (from one loop to another) to
@@ -46,6 +51,16 @@ function wxLoopsInRange(fromId, toId){
   if(a<0 || b<0) return [];
   const lo=Math.min(a,b), hi=Math.max(a,b);
   return WX_LOOPS.slice(lo,hi+1);
+}
+
+/* Centre point of a loop or section — used to place a photo on the map
+   when its location was set manually (no GPS) rather than captured live. */
+function wxRangeMidpoint(fromId, toId){
+  const range = wxLoopsInRange(fromId, toId||fromId);
+  if(!range.length) return null;
+  const lat = range.reduce((s,l)=>s+l.lat,0)/range.length;
+  const lon = range.reduce((s,l)=>s+l.lon,0)/range.length;
+  return {lat, lon};
 }
 
 /* Risk thresholds per the WeatherWatch legend:

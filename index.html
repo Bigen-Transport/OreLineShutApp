@@ -42,6 +42,32 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="photoBackdrop" style="display:none">
+  <div class="modal card" id="photoModal">
+    <h2>Add photo</h2>
+    <div class="frow">
+      <label style="flex:1">Caption<input type="text" id="photoCaption" placeholder="e.g. Rail weld km 412"></label>
+    </div>
+    <div class="frow">
+      <label>Section from <span class="hint">leave both blank to use your device's GPS instead</span><select id="photoLocFrom"></select></label>
+      <label>Section to <span class="hint">optional, for a section spanning two loops</span><select id="photoLocTo"></select></label>
+    </div>
+    <div class="note">Use the section fields when uploading a photo someone else took earlier — your device's live GPS wouldn't reflect where it was actually taken.</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn" id="btnSavePhoto">Save photo</button>
+      <button class="btn sec" id="btnCancelPhoto">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="lightboxBackdrop" style="display:none">
+  <div class="lightbox">
+    <img id="lightboxImg" alt="">
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+    <button class="btn-ghost lightbox-close" id="btnCloseLightbox">Close</button>
+  </div>
+</div>
+
 <div class="daystrip-wrap">
   <div class="daystrip-label"><span>DAILY EXECUTION — tap a day to report against it</span><span id="dayContext"></span></div>
   <div class="daystrip" id="daystrip" role="tablist" aria-label="Shutdown days"></div>
@@ -169,7 +195,7 @@ async function fetchState(){
   (deviations||[]).forEach(d=>trackUpdate(d.kpi_id, d.updated_at));
   const photosByKpi={}; (photos||[]).forEach(p=>{
     const { data:pub } = sb.storage.from('kpi-photos').getPublicUrl(p.storage_path);
-    (photosByKpi[p.kpi_id] ||= []).push({ id:p.id, day:p.day, dataUrl:pub.publicUrl, lat:p.lat, lon:p.lon, caption:p.caption, ts:p.created_at, gpsSource:p.gps_source });
+    (photosByKpi[p.kpi_id] ||= []).push({ id:p.id, day:p.day, dataUrl:pub.publicUrl, lat:p.lat, lon:p.lon, caption:p.caption, ts:p.created_at, gpsSource:p.gps_source, locFrom:p.loc_from||null, locTo:p.loc_to||null });
   });
 
   const days = meta.days;
@@ -321,7 +347,7 @@ function renderWeatherRiskCard(){
   }
   const trs = rows.map(x=>{
     const badge = x.risk.level==='high'?'b-bad':'b-warn';
-    const where = x.kpi.locFrom===x.kpi.locTo ? wxLoopLabel(x.kpi.locFrom) : `${wxLoopLabel(x.kpi.locFrom)} – ${wxLoopLabel(x.kpi.locTo)}`;
+    const where = wxSectionLabel(x.kpi.locFrom, x.kpi.locTo);
     const when = x.risk.date ? new Date(x.risk.date+'T00:00:00').toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'}) : '—';
     return `<tr><td><span class="badge b-grey">${esc(x.div.id)}</span></td><td>${esc(x.kpi.name)}<br><small style="color:var(--ink-2)">${esc(x.disc.name)}</small></td><td>${esc(where)}</td><td><span class="badge ${badge}">${RISK_LABEL[x.risk.level]}</span></td><td>${esc(when)}</td></tr>`;
   }).join('');
@@ -435,7 +461,7 @@ function renderDrill(){
         const open = ui.openKpi.has(k.id);
         const updated = fmtUpdated(k.lastUpdated);
         const wxRisk = wxRiskByKpi[k.id];
-        const wxTitle = k.locFrom ? (k.locFrom===k.locTo? wxLoopLabel(k.locFrom) : `${wxLoopLabel(k.locFrom)} – ${wxLoopLabel(k.locTo)}`) : '';
+        const wxTitle = wxSectionLabel(k.locFrom, k.locTo);
         const wxBadge = (wxRisk && RISK_RANK[wxRisk.level]>0) ? `<span class="badge ${wxRisk.level==='high'?'b-bad':'b-warn'}" title="${esc(wxTitle)}">Weather: ${RISK_LABEL[wxRisk.level]}</span>` : '';
         kpis += `<div class="kpi ${open?'open':''}" data-kpi="${k.id}">
           <header onclick="toggleKpi('${k.id}')">
@@ -505,12 +531,14 @@ function kpiTable(dv, dc, k, editable){
   const photos=(k.photos||[]).filter(p=>p.day===selectedDay);
   let photoBlock = `<div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span class="note">${photos.length} photo${photos.length===1?'':'s'} for Day ${selectedDay+1} · ${(k.photos||[]).length} total</span>
-      ${editable? `<button class="btn sm sec" onclick="startPhoto('${k.id}')">+ Add photo (GPS)</button>`:''}
+      ${editable? `<button class="btn sm sec" onclick="startPhoto('${k.id}')">+ Add photo</button>`:''}
     </div>`;
   if(photos.length){
-    photoBlock += `<div class="photogrid" style="margin-top:8px">`+photos.map((p,i)=>`
-      <div class="photocard"><img src="${p.dataUrl}" alt="${esc(p.caption)}">
-      <div class="meta"><b>${esc(p.caption||'Site photo')}</b><span class="gps">${p.lat!=null? p.lat.toFixed(5)+', '+p.lon.toFixed(5) : 'no GPS'}</span></div></div>`).join('')+`</div>`;
+    photoBlock += `<div class="photogrid" style="margin-top:8px">`+photos.map((p,i)=>{
+      const where = p.locFrom? wxSectionLabel(p.locFrom,p.locTo) : (p.lat!=null? p.lat.toFixed(5)+', '+p.lon.toFixed(5) : 'no location');
+      return `<div class="photocard"><img class="photo-thumb" src="${p.dataUrl}" alt="${esc(p.caption)}" data-src="${esc(p.dataUrl)}" data-caption="${esc(p.caption||'Site photo')}">
+      <div class="meta"><b>${esc(p.caption||'Site photo')}</b><span class="gps">${esc(where)}</span></div></div>`;
+    }).join('')+`</div>`;
   }
   return `<div class="tblwrap"><table class="data">
     <thead><tr><th class="num">Day</th><th class="num">Target (${esc(k.unit)})</th><th class="num">Actual</th><th class="num">Var</th><th>Deviation</th></tr></thead>
@@ -556,8 +584,11 @@ window.clearDev = async (kid, d) => {
    ===================================================================== */
 "use strict";
 
-/* ---------- Photo capture with GPS ---------- */
-let photoTargetKpi=null;
+/* ---------- Photo capture: live GPS, or a manual loop/section ---------- */
+/* The manual option matters for photos taken by someone else and uploaded
+   later — the device doing the uploading isn't where the photo was taken,
+   so live GPS at upload time would be wrong. */
+let photoTargetKpi=null, pendingPhotoDataUrl=null;
 const photoInput=document.createElement('input');
 photoInput.type='file'; photoInput.accept='image/*'; photoInput.capture='environment'; photoInput.style.display='none';
 document.body.appendChild(photoInput);
@@ -573,39 +604,66 @@ photoInput.addEventListener('change', ()=>{
       const scale=Math.min(1, 1000/img.width);
       cv.width=Math.round(img.width*scale); cv.height=Math.round(img.height*scale);
       cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-      const dataUrl=cv.toDataURL('image/jpeg',0.72);
-      attachPhoto(dataUrl);
+      pendingPhotoDataUrl=cv.toDataURL('image/jpeg',0.72);
+      $('#photoCaption').value='';
+      $('#photoLocFrom').innerHTML=wxLoopSelectOptions('');
+      $('#photoLocTo').innerHTML=wxLoopSelectOptions('');
+      $('#photoBackdrop').style.display='flex';
+      $('#photoCaption').focus();
     };
     img.src=rd.result;
   };
   rd.readAsDataURL(f);
 });
-function attachPhoto(dataUrl){
-  const x=findKpi(photoTargetKpi); if(!x) return;
-  const caption = prompt('Caption / location description (e.g. "Rail weld km 412, Loop 11")') || 'Site photo';
+$('#btnCancelPhoto').onclick = ()=>{ $('#photoBackdrop').style.display='none'; pendingPhotoDataUrl=null; photoTargetKpi=null; };
+$('#btnSavePhoto').onclick = async ()=>{
+  const x=findKpi(photoTargetKpi); const dataUrl=pendingPhotoDataUrl;
+  if(!x || !dataUrl) return;
+  const kid=photoTargetKpi, day=selectedDay;
+  const caption = $('#photoCaption').value.trim() || 'Site photo';
+  const locFrom = $('#photoLocFrom').value || null;
+  const locTo = locFrom ? ($('#photoLocTo').value || locFrom) : null;
+  $('#photoBackdrop').style.display='none'; pendingPhotoDataUrl=null; photoTargetKpi=null;
+
   const finish=async (lat,lon,src)=>{
     try{
       const blob = await (await fetch(dataUrl)).blob();
-      const path = `${photoTargetKpi}/${selectedDay}-${Date.now()}.jpg`;
+      const path = `${kid}/${day}-${Date.now()}.jpg`;
       const { error: upErr } = await sb.storage.from('kpi-photos').upload(path, blob, { contentType:'image/jpeg' });
       if(upErr) throw upErr;
       const { error: insErr } = await sb.from('kpi_photos').insert({
-        kpi_id: photoTargetKpi, day: selectedDay, storage_path: path,
-        lat, lon, caption, gps_source: src, created_by: currentUser?.id||null
+        kpi_id: kid, day, storage_path: path,
+        lat, lon, caption, gps_source: src, loc_from:locFrom, loc_to:locTo, created_by: currentUser?.id||null
       });
       if(insErr) throw insErr;
       const { data:pub } = sb.storage.from('kpi-photos').getPublicUrl(path);
       x.kpi.photos = x.kpi.photos||[];
-      x.kpi.photos.push({day:selectedDay, dataUrl:pub.publicUrl, lat, lon, caption, ts:new Date().toISOString(), gpsSource:src});
-      renderDrill(); toast(lat!=null? 'Photo saved with GPS position.':'Photo saved — no GPS available; add coordinates on the Photos tab if needed.');
+      x.kpi.photos.push({day, dataUrl:pub.publicUrl, lat, lon, caption, ts:new Date().toISOString(), gpsSource:src, locFrom, locTo});
+      renderDrill();
+      toast(locFrom? 'Photo saved with '+wxSectionLabel(locFrom,locTo)+'.' : lat!=null? 'Photo saved with GPS position.' : 'Photo saved — no location available.');
     }catch(e){ toast('Photo upload failed: '+e.message); }
   };
-  if(navigator.geolocation){
+
+  if(locFrom){
+    const mid = wxRangeMidpoint(locFrom, locTo);
+    finish(mid?mid.lat:null, mid?mid.lon:null, 'loop');
+  } else if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
       pos=>finish(pos.coords.latitude, pos.coords.longitude, 'device'),
       ()=>finish(null,null,'none'), {enableHighAccuracy:true, timeout:6000});
   } else finish(null,null,'none');
-}
+};
+
+/* ---------- Photo lightbox (click any thumbnail to view full-size) ---------- */
+document.addEventListener('click', e=>{
+  const el = e.target.closest('.photo-thumb'); if(!el) return;
+  $('#lightboxImg').src = el.dataset.src||'';
+  $('#lightboxCaption').textContent = el.dataset.caption||'';
+  $('#lightboxBackdrop').style.display='flex';
+});
+function closeLightbox(){ $('#lightboxBackdrop').style.display='none'; $('#lightboxImg').src=''; }
+$('#btnCloseLightbox').onclick = closeLightbox;
+$('#lightboxBackdrop').addEventListener('click', e=>{ if(e.target.id==='lightboxBackdrop') closeLightbox(); });
 
 /* ---------- Photos tab ---------- */
 let photoMap=null, photoLayer=null;
@@ -626,12 +684,15 @@ function renderPhotos(){
       <div id="mapFallback" class="note" style="display:none;margin-top:6px">Map tiles could not load in this environment — coordinates remain attached to every photo below.</div>
     </div>
     <div class="card"><div class="photogrid">${
-      photos.length? photos.map(x=>`<div class="photocard">
-        <img src="${x.p.dataUrl}" alt="${esc(x.p.caption)}">
+      photos.length? photos.map(x=>{
+        const where = x.p.locFrom? wxSectionLabel(x.p.locFrom,x.p.locTo) : (x.p.lat!=null? x.p.lat.toFixed(5)+', '+x.p.lon.toFixed(5):'no location');
+        return `<div class="photocard">
+        <img class="photo-thumb" src="${x.p.dataUrl}" alt="${esc(x.p.caption)}" data-src="${esc(x.p.dataUrl)}" data-caption="${esc(x.p.caption)}">
         <div class="meta"><b>${esc(x.p.caption)}</b>
           ${esc(x.div.id)} · ${esc(x.kpi.name)} · Day ${x.p.day+1}<br>
-          <span class="gps">${x.p.lat!=null? x.p.lat.toFixed(5)+', '+x.p.lon.toFixed(5):'no GPS'}</span>
-        </div></div>`).join('') : '<span class="note">No photos match the current filter.</span>'
+          <span class="gps">${esc(where)}</span>
+        </div></div>`;
+      }).join('') : '<span class="note">No photos match the current filter.</span>'
     }</div></div>`;
   $('#phDiv').onchange=e=>{ ui.photoDiv=e.target.value; renderPhotos(); };
   $('#phDay').onchange=e=>{ ui.photoDay=e.target.value; renderPhotos(); };
