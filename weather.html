@@ -94,19 +94,19 @@ function renderWxTable(loopResults, dates, days){
   const dayHead1 = dates.map((t,i)=>{
     const dt=new Date(t+'T00:00:00');
     const tag = i<15 ? 'IFS' : 'EC46';
-    return `<th colspan="3" class="daygrp daylabel">${dt.toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'})} <span style="opacity:.6">${tag}</span></th>`;
+    return `<th colspan="3" class="daygrp daystart daylabel">${dt.toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'})} <span style="opacity:.6">${tag}</span></th>`;
   }).join('');
-  const dayHead2 = dates.map(()=>`<th class="daygrp metric-mm">mm</th><th class="metric-wind">km/h</th><th class="metric-temp">°C range</th>`).join('');
+  const dayHead2 = dates.map(()=>`<th class="daygrp daystart metric-mm">mm</th><th class="metric-wind">km/h</th><th class="metric-temp">°C range</th>`).join('');
   const bodyRows = loopResults.map(res=>{
     const l=res.loop;
     if(!res.rows){
-      return `<tr><td class="loopcell">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${dates.map(()=>`<td class="daycell">—</td><td class="daycell">—</td><td class="daycell">—</td>`).join('')}<td class="riskcell"><span class="badge b-grey">no data</span></td></tr>`;
+      return `<tr><td class="loopcell">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${dates.map(()=>`<td class="daycell daystart">—</td><td class="daycell">—</td><td class="daycell">—</td>`).join('')}<td class="riskcell"><span class="badge b-grey">no data</span></td></tr>`;
     }
     let worst='low';
     const cells=res.rows.map(r=>{
       if(RISK_RANK[r.level]>RISK_RANK[worst]) worst=r.level;
       const cls = r.level==='high'?'red':(r.level==='medium'?'amber':'');
-      return `<td class="daycell metric-mm ${cls}">${r.rain}</td><td class="daycell metric-wind ${cls}">${r.wind}</td><td class="daycell metric-temp ${cls}">${r.tmin}–${r.tmax}°</td>`;
+      return `<td class="daycell daystart metric-mm ${cls}">${r.rain}</td><td class="daycell metric-wind ${cls}">${r.wind}</td><td class="daycell metric-temp ${cls}">${r.tmin}–${r.tmax}°</td>`;
     }).join('');
     const riskBadge = worst==='high'?'b-bad':(worst==='medium'?'b-warn':'b-grey');
     const loopRiskCls = worst==='high'?'risk-high':(worst==='medium'?'risk-medium':'');

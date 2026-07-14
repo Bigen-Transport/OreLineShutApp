@@ -164,7 +164,8 @@ table.wx .metric-wind{color:#0F7A6E}
 table.wx .metric-temp{color:#7A4F9E}
 table.wx td.amber{background:var(--warn-bg)}
 table.wx td.red{background:#FBDBD8}
-table.wx .daygrp{text-align:center;border-left:3px solid #AEB8C2}
+table.wx .daygrp{text-align:center}
+table.wx .daystart{border-left:3px solid #AEB8C2}
 table.wx td.riskcell{text-align:center}
 
 /* ---------- Forms / setup ---------- */
