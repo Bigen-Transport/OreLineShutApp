@@ -250,6 +250,10 @@ drop policy if exists "kpi photos writable by authenticated editors" on storage.
 create policy "kpi photos writable by authenticated editors" on storage.objects
   for insert with check (bucket_id = 'kpi-photos' and auth.role() = 'authenticated');
 
+drop policy if exists "kpi photos deletable by authenticated editors" on storage.objects;
+create policy "kpi photos deletable by authenticated editors" on storage.objects
+  for delete using (bucket_id = 'kpi-photos' and auth.role() = 'authenticated');
+
 -- =====================================================================
 -- Seed data — mirrors the original in-app demo dataset
 -- =====================================================================
