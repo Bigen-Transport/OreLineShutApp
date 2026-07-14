@@ -45,6 +45,15 @@
 <div class="modal-backdrop" id="photoBackdrop" style="display:none">
   <div class="modal card" id="photoModal">
     <h2>Add photo</h2>
+    <div class="frow" id="photoTargetRow" style="display:none">
+      <label>Division<select id="photoDiv"></select></label>
+      <label>Discipline<select id="photoDisc"></select></label>
+      <label>KPI<select id="photoKpi"></select></label>
+      <label>Day<select id="photoDay"></select></label>
+    </div>
+    <div class="frow">
+      <label style="flex:1">Photo(s) <span class="hint">pick one or more — they'll all get the same caption and location below</span><input type="file" id="photoFiles" accept="image/*" multiple></label>
+    </div>
     <div class="frow">
       <label style="flex:1">Caption<input type="text" id="photoCaption" placeholder="e.g. Rail weld km 412"></label>
     </div>
@@ -52,11 +61,12 @@
       <label>Section from <span class="hint">leave both blank to use your device's GPS instead</span><select id="photoLocFrom"></select></label>
       <label>Section to <span class="hint">optional, for a section spanning two loops</span><select id="photoLocTo"></select></label>
     </div>
-    <div class="note">Use the section fields when uploading a photo someone else took earlier — your device's live GPS wouldn't reflect where it was actually taken.</div>
+    <div class="note">Use the section fields when uploading photos someone else took earlier — your device's live GPS wouldn't reflect where they were actually taken.</div>
     <div style="display:flex;gap:8px;margin-top:10px">
-      <button class="btn" id="btnSavePhoto">Save photo</button>
+      <button class="btn" id="btnSavePhoto">Save photo(s)</button>
       <button class="btn sec" id="btnCancelPhoto">Cancel</button>
     </div>
+    <div class="note" id="photoError" style="color:var(--bad);margin-top:6px"></div>
   </div>
 </div>
 
@@ -195,7 +205,7 @@ async function fetchState(){
   (deviations||[]).forEach(d=>trackUpdate(d.kpi_id, d.updated_at));
   const photosByKpi={}; (photos||[]).forEach(p=>{
     const { data:pub } = sb.storage.from('kpi-photos').getPublicUrl(p.storage_path);
-    (photosByKpi[p.kpi_id] ||= []).push({ id:p.id, day:p.day, dataUrl:pub.publicUrl, lat:p.lat, lon:p.lon, caption:p.caption, ts:p.created_at, gpsSource:p.gps_source, locFrom:p.loc_from||null, locTo:p.loc_to||null });
+    (photosByKpi[p.kpi_id] ||= []).push({ id:p.id, day:p.day, dataUrl:pub.publicUrl, lat:p.lat, lon:p.lon, caption:p.caption, ts:p.created_at, gpsSource:p.gps_source, locFrom:p.loc_from||null, locTo:p.loc_to||null, storagePath:p.storage_path });
   });
 
   const days = meta.days;
@@ -536,7 +546,8 @@ function kpiTable(dv, dc, k, editable){
   if(photos.length){
     photoBlock += `<div class="photogrid" style="margin-top:8px">`+photos.map((p,i)=>{
       const where = p.locFrom? wxSectionLabel(p.locFrom,p.locTo) : (p.lat!=null? p.lat.toFixed(5)+', '+p.lon.toFixed(5) : 'no location');
-      return `<div class="photocard"><img class="photo-thumb" src="${p.dataUrl}" alt="${esc(p.caption)}" data-src="${esc(p.dataUrl)}" data-caption="${esc(p.caption||'Site photo')}">
+      const delBtn = editable? `<button class="photo-del" onclick="deletePhoto('${p.id}','${k.id}')" title="Delete photo">×</button>`:'';
+      return `<div class="photocard">${delBtn}<img class="photo-thumb" src="${p.dataUrl}" alt="${esc(p.caption)}" data-src="${esc(p.dataUrl)}" data-caption="${esc(p.caption||'Site photo')}">
       <div class="meta"><b>${esc(p.caption||'Site photo')}</b><span class="gps">${esc(where)}</span></div></div>`;
     }).join('')+`</div>`;
   }
@@ -585,73 +596,129 @@ window.clearDev = async (kid, d) => {
 "use strict";
 
 /* ---------- Photo capture: live GPS, or a manual loop/section ---------- */
-/* The manual option matters for photos taken by someone else and uploaded
-   later — the device doing the uploading isn't where the photo was taken,
-   so live GPS at upload time would be wrong. */
-let photoTargetKpi=null, pendingPhotoDataUrl=null;
-const photoInput=document.createElement('input');
-photoInput.type='file'; photoInput.accept='image/*'; photoInput.capture='environment'; photoInput.style.display='none';
-document.body.appendChild(photoInput);
-window.startPhoto = kid => { photoTargetKpi=kid; photoInput.value=''; photoInput.click(); };
-photoInput.addEventListener('change', ()=>{
-  const f=photoInput.files[0]; if(!f || !photoTargetKpi) return;
-  const rd=new FileReader();
-  rd.onload=()=>{
-    // downscale to keep the report light
-    const img=new Image();
-    img.onload=()=>{
-      const cv=document.createElement('canvas');
-      const scale=Math.min(1, 1000/img.width);
-      cv.width=Math.round(img.width*scale); cv.height=Math.round(img.height*scale);
-      cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-      pendingPhotoDataUrl=cv.toDataURL('image/jpeg',0.72);
-      $('#photoCaption').value='';
-      $('#photoLocFrom').innerHTML=wxLoopSelectOptions('');
-      $('#photoLocTo').innerHTML=wxLoopSelectOptions('');
-      $('#photoBackdrop').style.display='flex';
-      $('#photoCaption').focus();
+/* The manual location option matters for photos taken by someone else and
+   uploaded later — the device doing the uploading isn't where the photo
+   was taken, so live GPS at upload time would be wrong. Multiple files can
+   be picked at once and all get the same caption/location in one go. */
+let photoTargetKpi=null;
+
+function downscaleImageFile(file){
+  return new Promise((resolve,reject)=>{
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const cv=document.createElement('canvas');
+        const scale=Math.min(1, 1000/img.width);
+        cv.width=Math.round(img.width*scale); cv.height=Math.round(img.height*scale);
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        resolve(cv.toDataURL('image/jpeg',0.72));
+      };
+      img.onerror=()=>reject(new Error('Could not read image'));
+      img.src=rd.result;
     };
-    img.src=rd.result;
-  };
-  rd.readAsDataURL(f);
-});
-$('#btnCancelPhoto').onclick = ()=>{ $('#photoBackdrop').style.display='none'; pendingPhotoDataUrl=null; photoTargetKpi=null; };
+    rd.onerror=()=>reject(new Error('Could not read file'));
+    rd.readAsDataURL(file);
+  });
+}
+function photoDivOptions(){ return state.divisions.filter(d=>canEdit(d.id)).map(d=>`<option value="${d.id}">${d.id}</option>`).join(''); }
+function refreshPhotoDiscOptions(){
+  const dv = state.divisions.find(d=>d.id===$('#photoDiv').value);
+  $('#photoDisc').innerHTML = (dv?dv.disciplines:[]).map(dc=>`<option value="${dc.id}">${esc(dc.name)}</option>`).join('');
+  refreshPhotoKpiOptions();
+}
+function refreshPhotoKpiOptions(){
+  const dv = state.divisions.find(d=>d.id===$('#photoDiv').value);
+  const dc = dv && dv.disciplines.find(x=>x.id===$('#photoDisc').value);
+  $('#photoKpi').innerHTML = (dc?dc.kpis:[]).map(k=>`<option value="${k.id}">${esc(k.name)}</option>`).join('');
+}
+window.startPhoto = kid => {
+  photoTargetKpi = kid;
+  $('#photoTargetRow').style.display='none';
+  openPhotoModal();
+};
+window.startPhotoFromGallery = () => {
+  photoTargetKpi = null;
+  const opts = photoDivOptions();
+  if(!opts){ toast('You need edit rights on a division to add a photo.'); return; }
+  $('#photoDiv').innerHTML = opts;
+  $('#photoDiv').onchange = refreshPhotoDiscOptions;
+  $('#photoDisc').onchange = refreshPhotoKpiOptions;
+  refreshPhotoDiscOptions();
+  $('#photoDay').innerHTML = Array.from({length:state.meta.days},(_,i)=>`<option value="${i}" ${i===selectedDay?'selected':''}>Day ${i+1} — ${fmtDay(i)}</option>`).join('');
+  $('#photoTargetRow').style.display='flex';
+  openPhotoModal();
+};
+function openPhotoModal(){
+  $('#photoFiles').value='';
+  $('#photoCaption').value='';
+  $('#photoLocFrom').innerHTML=wxLoopSelectOptions('');
+  $('#photoLocTo').innerHTML=wxLoopSelectOptions('');
+  $('#photoError').textContent='';
+  $('#photoBackdrop').style.display='flex';
+}
+$('#btnCancelPhoto').onclick = ()=>{ $('#photoBackdrop').style.display='none'; photoTargetKpi=null; };
 $('#btnSavePhoto').onclick = async ()=>{
-  const x=findKpi(photoTargetKpi); const dataUrl=pendingPhotoDataUrl;
-  if(!x || !dataUrl) return;
-  const kid=photoTargetKpi, day=selectedDay;
+  const files = $('#photoFiles').files;
+  if(!files.length){ $('#photoError').textContent='Choose at least one photo.'; return; }
+  const kid = photoTargetKpi!=null ? photoTargetKpi : $('#photoKpi').value;
+  const x = findKpi(kid);
+  if(!x){ $('#photoError').textContent='Pick a KPI.'; return; }
+  if(!canEdit(x.div.id)){ toast('View-only access for '+x.div.id); return; }
+  const day = photoTargetKpi!=null ? selectedDay : (+$('#photoDay').value || 0);
   const caption = $('#photoCaption').value.trim() || 'Site photo';
   const locFrom = $('#photoLocFrom').value || null;
   const locTo = locFrom ? ($('#photoLocTo').value || locFrom) : null;
-  $('#photoBackdrop').style.display='none'; pendingPhotoDataUrl=null; photoTargetKpi=null;
+  $('#photoBackdrop').style.display='none';
 
-  const finish=async (lat,lon,src)=>{
+  let dataUrls;
+  try{ dataUrls = await Promise.all(Array.from(files).map(downscaleImageFile)); }
+  catch(e){ toast('Could not read one of the chosen files: '+e.message); return; }
+
+  let lat=null, lon=null, src='none';
+  if(locFrom){
+    const mid = wxRangeMidpoint(locFrom, locTo);
+    lat = mid?mid.lat:null; lon = mid?mid.lon:null; src='loop';
+  } else if(navigator.geolocation){
+    await new Promise(resolve=>{
+      navigator.geolocation.getCurrentPosition(
+        pos=>{ lat=pos.coords.latitude; lon=pos.coords.longitude; src='device'; resolve(); },
+        ()=>resolve(), {enableHighAccuracy:true, timeout:6000});
+    });
+  }
+
+  let okCount=0;
+  for(const dataUrl of dataUrls){
     try{
       const blob = await (await fetch(dataUrl)).blob();
-      const path = `${kid}/${day}-${Date.now()}.jpg`;
+      const path = `${kid}/${day}-${Date.now()}-${Math.random().toString(36).slice(2,7)}.jpg`;
       const { error: upErr } = await sb.storage.from('kpi-photos').upload(path, blob, { contentType:'image/jpeg' });
       if(upErr) throw upErr;
-      const { error: insErr } = await sb.from('kpi_photos').insert({
+      const { data:inserted, error: insErr } = await sb.from('kpi_photos').insert({
         kpi_id: kid, day, storage_path: path,
         lat, lon, caption, gps_source: src, loc_from:locFrom, loc_to:locTo, created_by: currentUser?.id||null
-      });
+      }).select('id').single();
       if(insErr) throw insErr;
       const { data:pub } = sb.storage.from('kpi-photos').getPublicUrl(path);
       x.kpi.photos = x.kpi.photos||[];
-      x.kpi.photos.push({day, dataUrl:pub.publicUrl, lat, lon, caption, ts:new Date().toISOString(), gpsSource:src, locFrom, locTo});
-      renderDrill();
-      toast(locFrom? 'Photo saved with '+wxSectionLabel(locFrom,locTo)+'.' : lat!=null? 'Photo saved with GPS position.' : 'Photo saved — no location available.');
-    }catch(e){ toast('Photo upload failed: '+e.message); }
-  };
-
-  if(locFrom){
-    const mid = wxRangeMidpoint(locFrom, locTo);
-    finish(mid?mid.lat:null, mid?mid.lon:null, 'loop');
-  } else if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(
-      pos=>finish(pos.coords.latitude, pos.coords.longitude, 'device'),
-      ()=>finish(null,null,'none'), {enableHighAccuracy:true, timeout:6000});
-  } else finish(null,null,'none');
+      x.kpi.photos.push({id:inserted.id, day, dataUrl:pub.publicUrl, lat, lon, caption, ts:new Date().toISOString(), gpsSource:src, locFrom, locTo, storagePath:path});
+      okCount++;
+    }catch(e){ toast('A photo failed to upload: '+e.message); }
+  }
+  photoTargetKpi=null;
+  renderDrill(); if(activeTab==='photos') renderPhotos();
+  if(okCount) toast(okCount+' photo'+(okCount===1?'':'s')+' saved'+(locFrom? ' with '+wxSectionLabel(locFrom,locTo):(lat!=null?' with GPS position':''))+'.');
+};
+window.deletePhoto = async (photoId, kid) => {
+  const x=findKpi(kid); if(!x || !canEdit(x.div.id)) return;
+  if(!confirm('Delete this photo?')) return;
+  const photo = (x.kpi.photos||[]).find(p=>p.id===photoId);
+  const { error } = await sb.from('kpi_photos').delete().eq('id', photoId);
+  if(error){ toast('Delete failed: '+error.message); return; }
+  if(photo?.storagePath){ sb.storage.from('kpi-photos').remove([photo.storagePath]).catch(()=>{}); }
+  x.kpi.photos = (x.kpi.photos||[]).filter(p=>p.id!==photoId);
+  renderDrill(); if(activeTab==='photos') renderPhotos();
+  toast('Photo deleted.');
 };
 
 /* ---------- Photo lightbox (click any thumbnail to view full-size) ---------- */
@@ -673,12 +740,14 @@ function renderPhotos(){
     (!ui.photoDiv || x.div.id===ui.photoDiv) &&
     (ui.photoDay==='' || x.p.day===+ui.photoDay));
   const withGps=photos.filter(x=>x.p.lat!=null);
+  const canAddAny = state.divisions.some(d=>canEdit(d.id));
   el.innerHTML=`<div class="card">
       <h2>Site photos <span class="hint">GPS-linked evidence of executed work</span></h2>
       <div class="frow" style="margin-bottom:12px">
         <label>Division<select id="phDiv"><option value="">All</option>${state.divisions.map(d=>`<option value="${d.id}" ${ui.photoDiv===d.id?'selected':''}>${d.id}</option>`).join('')}</select></label>
         <label>Day<select id="phDay"><option value="">All</option>${Array.from({length:state.meta.days},(_,i)=>`<option value="${i}" ${ui.photoDay===String(i)?'selected':''}>Day ${i+1} — ${fmtDay(i)}</option>`).join('')}</select></label>
-        <span class="note">${photos.length} photo(s) · ${withGps.length} with GPS. Photos are added per KPI in the Drill-down tab.</span>
+        <span class="note">${photos.length} photo(s) · ${withGps.length} with GPS.</span>
+        ${canAddAny? `<button class="btn sm sec" onclick="startPhotoFromGallery()">+ Add photo</button>` : ''}
       </div>
       <div id="photomap"></div>
       <div id="mapFallback" class="note" style="display:none;margin-top:6px">Map tiles could not load in this environment — coordinates remain attached to every photo below.</div>
@@ -686,7 +755,8 @@ function renderPhotos(){
     <div class="card"><div class="photogrid">${
       photos.length? photos.map(x=>{
         const where = x.p.locFrom? wxSectionLabel(x.p.locFrom,x.p.locTo) : (x.p.lat!=null? x.p.lat.toFixed(5)+', '+x.p.lon.toFixed(5):'no location');
-        return `<div class="photocard">
+        const delBtn = canEdit(x.div.id)? `<button class="photo-del" onclick="deletePhoto('${x.p.id}','${x.kpi.id}')" title="Delete photo">×</button>`:'';
+        return `<div class="photocard">${delBtn}
         <img class="photo-thumb" src="${x.p.dataUrl}" alt="${esc(x.p.caption)}" data-src="${esc(x.p.dataUrl)}" data-caption="${esc(x.p.caption)}">
         <div class="meta"><b>${esc(x.p.caption)}</b>
           ${esc(x.div.id)} · ${esc(x.kpi.name)} · Day ${x.p.day+1}<br>
