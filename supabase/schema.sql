@@ -210,9 +210,16 @@ create table if not exists kpi_photos (
   lon double precision,
   caption text,
   gps_source text,
+  loc_from text,
+  loc_to text,
   created_at timestamptz not null default now(),
   created_by uuid references profiles(id)
 );
+-- loc_from/loc_to: same loop-id scheme as kpis, for photos tagged to a
+-- section/loop manually (e.g. uploaded later by someone else) instead of
+-- captured live with device GPS. Added here for installs predating it.
+alter table kpi_photos add column if not exists loc_from text;
+alter table kpi_photos add column if not exists loc_to text;
 alter table kpi_photos enable row level security;
 drop policy if exists "photos readable by all" on kpi_photos;
 create policy "photos readable by all" on kpi_photos for select using (true);
