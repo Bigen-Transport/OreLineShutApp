@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="assets/weather-loops.js"></script>
 </head>
 <body>
 
@@ -176,7 +177,7 @@ async function fetchState(){
   (kpis||[]).forEach(k=>{
     const targets=(k.targets||[]).slice(0,days); while(targets.length<days) targets.push(0);
     const actualsArr=Array.from({length:days},(_,d)=>{ const v=(actualsByKpi[k.id]||{})[d]; return v===undefined?null:v; });
-    (kpisByDisc[k.discipline_id] ||= []).push({ id:k.id, name:k.name, workType:k.work_type, unit:k.unit, targets, actuals:actualsArr, dev:devByKpi[k.id]||{}, photos:photosByKpi[k.id]||[], lastUpdated:lastUpdatedByKpi[k.id]||null });
+    (kpisByDisc[k.discipline_id] ||= []).push({ id:k.id, name:k.name, workType:k.work_type, unit:k.unit, targets, actuals:actualsArr, dev:devByKpi[k.id]||{}, photos:photosByKpi[k.id]||[], lastUpdated:lastUpdatedByKpi[k.id]||null, locFrom:k.loc_from||null, locTo:k.loc_to||null });
   });
   const discByDiv={};
   (disciplines||[]).forEach(dc=>{ (discByDiv[dc.division_id] ||= []).push({ id:dc.id, name:dc.name, kpis:kpisByDisc[dc.id]||[] }); });
@@ -273,6 +274,62 @@ function renderDaystrip(){
 }
 
 /* ---------- Overview ---------- */
+/* ---------- Weather risk linking (KPI location -> WeatherWatch forecast) ---------- */
+let wxRiskByKpi = {};   // kpi.id -> {level, loop, date} | undefined if unmapped
+let wxRiskReady = false;
+async function refreshKpiWeatherRisk(){
+  wxRiskReady = false;
+  const loopIds = new Set();
+  allKpis().forEach(({kpi})=>{
+    if(!kpi.locFrom) return;
+    wxLoopsInRange(kpi.locFrom, kpi.locTo||kpi.locFrom).forEach(l=>loopIds.add(wxLoopId(l)));
+  });
+  if(!loopIds.size){ wxRiskByKpi={}; wxRiskReady=true; return; }
+
+  const loops = [...loopIds].map(id=>wxLoopById(id)).filter(Boolean);
+  const settled = await Promise.allSettled(loops.map(l=>fetchLoopForecast(l,3))); // today + next 2 real days
+  const byLoopId = {};
+  settled.forEach((s,i)=>{ if(s.status==='fulfilled') byLoopId[wxLoopId(loops[i])] = s.value; });
+
+  const next = {};
+  allKpis().forEach(({kpi})=>{
+    if(!kpi.locFrom) return;
+    const range = wxLoopsInRange(kpi.locFrom, kpi.locTo||kpi.locFrom);
+    let worst='low', worstLoop=null, worstDate=null, hasData=false;
+    range.forEach(l=>{
+      const res = byLoopId[wxLoopId(l)]; if(!res) return;
+      hasData=true;
+      res.rows.forEach(r=>{ if(RISK_RANK[r.level]>RISK_RANK[worst]){ worst=r.level; worstLoop=l; worstDate=r.t; } });
+    });
+    if(hasData) next[kpi.id] = { level:worst, loop:worstLoop, date:worstDate };
+  });
+  wxRiskByKpi = next;
+  wxRiskReady = true;
+}
+function renderWeatherRiskCard(){
+  const rows = allKpis()
+    .filter(({kpi})=>kpi.locFrom && wxRiskByKpi[kpi.id] && RISK_RANK[wxRiskByKpi[kpi.id].level]>0)
+    .map(({div,disc,kpi})=>({div,disc,kpi,risk:wxRiskByKpi[kpi.id]}))
+    .sort((a,b)=>RISK_RANK[b.risk.level]-RISK_RANK[a.risk.level]);
+
+  if(!wxRiskReady){
+    return `<div class="card"><h2>Weather risk <span class="hint">next 3 days · linked to each activity's mapped location</span></h2><div class="note">Checking forecast…</div></div>`;
+  }
+  const hint = `<h2>Weather risk <span class="hint">next 3 days · linked to each activity's mapped location — see <a href="weather.html">Weather tab</a> for the full corridor forecast</span></h2>`;
+  if(!rows.length){
+    return `<div class="card">${hint}<div class="note">No mapped activities sit in an elevated-risk loop over the next 3 days.</div></div>`;
+  }
+  const trs = rows.map(x=>{
+    const badge = x.risk.level==='high'?'b-bad':'b-warn';
+    const where = x.kpi.locFrom===x.kpi.locTo ? wxLoopLabel(x.kpi.locFrom) : `${wxLoopLabel(x.kpi.locFrom)} – ${wxLoopLabel(x.kpi.locTo)}`;
+    const when = x.risk.date ? new Date(x.risk.date+'T00:00:00').toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'}) : '—';
+    return `<tr><td><span class="badge b-grey">${esc(x.div.id)}</span></td><td>${esc(x.kpi.name)}<br><small style="color:var(--ink-2)">${esc(x.disc.name)}</small></td><td>${esc(where)}</td><td><span class="badge ${badge}">${RISK_LABEL[x.risk.level]}</span></td><td>${esc(when)}</td></tr>`;
+  }).join('');
+  return `<div class="card">${hint}
+    <div class="tblwrap"><table class="data"><thead><tr><th>OD</th><th>Activity</th><th>Location</th><th>Risk</th><th>Peak day</th></tr></thead><tbody>${trs}</tbody></table></div>
+  </div>`;
+}
+
 function renderOverview(){
   const el=$('#tab-overview');
   const items=allKpis();
@@ -332,6 +389,7 @@ function renderOverview(){
       <div class="chartbox" style="height:300px"><canvas id="ovChart"></canvas></div>
     </div>
     <div class="grid3">${divCards}</div>
+    <div style="margin-top:14px">${renderWeatherRiskCard()}</div>
     <div class="card" style="margin-top:14px">
       <h2>Deviations — Day ${selectedDay+1} <span class="hint">reasons captured at KPI level in Drill-down</span></h2>
       <div class="tblwrap"><table class="data"><thead><tr><th>OD</th><th>KPI</th><th>Category</th><th>Reason</th></tr></thead><tbody>${devRows}</tbody></table></div>
@@ -376,12 +434,16 @@ function renderDrill(){
         const pct = totT(k)? Math.round(cumA(k,ref)/totT(k)*100):0;
         const open = ui.openKpi.has(k.id);
         const updated = fmtUpdated(k.lastUpdated);
+        const wxRisk = wxRiskByKpi[k.id];
+        const wxTitle = k.locFrom ? (k.locFrom===k.locTo? wxLoopLabel(k.locFrom) : `${wxLoopLabel(k.locFrom)} – ${wxLoopLabel(k.locTo)}`) : '';
+        const wxBadge = (wxRisk && RISK_RANK[wxRisk.level]>0) ? `<span class="badge ${wxRisk.level==='high'?'b-bad':'b-warn'}" title="${esc(wxTitle)}">Weather: ${RISK_LABEL[wxRisk.level]}</span>` : '';
         kpis += `<div class="kpi ${open?'open':''}" data-kpi="${k.id}">
           <header onclick="toggleKpi('${k.id}')">
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
             <div class="nm">${esc(k.name)} ${updated?`<span class="updated-tag">Updated ${updated}</span>`:''}<small>${esc(k.workType)} · ${esc(k.unit)}</small></div>
             <span class="badge b-grey">${pct}% of shutdown scope</span>
             <span class="badge ${bg}">${stt==='grey'?'no data':'vs plan: '+Math.round((cumA(k,ref)/Math.max(cumT(k,ref),0.0001))*100)+'%'}</span>
+            ${wxBadge}
           </header>
           <div class="kpibody">${open? kpiTable(dv,dc,k,editable):''}</div>
         </div>`;
@@ -679,6 +741,14 @@ function drawDivChart(){
 }
 
 /* ---------- Setup / admin ---------- */
+function wxLoopSelectOptions(selected){
+  let html = `<option value="">— none —</option>`;
+  WX_LOOPS.forEach(l=>{
+    const id = wxLoopId(l);
+    html += `<option value="${id}" ${selected===id?'selected':''}>${esc(wxLoopLabel(id))}</option>`;
+  });
+  return html;
+}
 function renderSetup(){
   const el=$('#tab-setup');
   if(!isAdmin()){
@@ -690,6 +760,11 @@ function renderSetup(){
   allKpis().forEach(({div,disc,kpi})=>{
     kpiRows+=`<tr><td><span class="badge b-grey">${div.id}</span></td><td>${esc(disc.name)}</td><td>${esc(kpi.name)}<br><small style="color:var(--ink-2)">${esc(kpi.workType)} · ${esc(kpi.unit)}</small></td>
       <td class="num">${Math.round(totT(kpi)*100)/100}</td>
+      <td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+        <select onchange="setKpiLocation('${kpi.id}','from',this.value)" style="font-size:11.5px;padding:3px 4px">${wxLoopSelectOptions(kpi.locFrom)}</select>
+        <span class="note">to</span>
+        <select onchange="setKpiLocation('${kpi.id}','to',this.value)" style="font-size:11.5px;padding:3px 4px">${wxLoopSelectOptions(kpi.locTo)}</select>
+      </div></td>
       <td><button class="btn sm sec" onclick="editTargets('${kpi.id}')">Targets</button>
           <button class="btn sm danger" onclick="delKpi('${kpi.id}')">Delete</button></td></tr>`;
   });
@@ -707,6 +782,10 @@ function renderSetup(){
       <label>Daily target (uniform)<input id="nkTarget" type="number" step="any" placeholder="e.g. 3.6" style="min-width:90px"></label>
       <span class="note">or set per-day:</span>
       <div class="targetrow">${Array.from({length:10},(_,i)=>`<input type="number" step="any" id="nkT${i}" placeholder="D${i+1}">`).join('')}</div>
+    </div>
+    <div class="frow">
+      <label>Location from <span class="hint">links this KPI to the WeatherWatch forecast</span><select id="nkLocFrom">${wxLoopSelectOptions('')}</select></label>
+      <label>Location to <span class="hint">only for a section spanning two loops</span><select id="nkLocTo">${wxLoopSelectOptions('')}</select></label>
       <button class="btn" onclick="addKpi()">Add KPI</button>
     </div>
   </div>
@@ -719,8 +798,8 @@ function renderSetup(){
     </div>
   </div>
   <div class="card">
-    <h2>KPI register</h2>
-    <div class="tblwrap"><table class="data"><thead><tr><th>OD</th><th>Discipline</th><th>KPI</th><th class="num">Total target</th><th></th></tr></thead><tbody>${kpiRows}</tbody></table></div>
+    <h2>KPI register <span class="hint">location links a KPI to the WeatherWatch forecast — Overview and Drill-down flag it when its loop(s) turn amber/red</span></h2>
+    <div class="tblwrap"><table class="data"><thead><tr><th>OD</th><th>Discipline</th><th>KPI</th><th class="num">Total target</th><th>Location</th><th></th></tr></thead><tbody>${kpiRows}</tbody></table></div>
   </div>
   <div class="card">
     <h2>Access model <span class="hint">enforced server-side by Supabase Row Level Security, keyed off each signed-in user's profile role</span></h2>
@@ -738,7 +817,13 @@ function renderSetup(){
     </div>
     <div class="note">Sharing: everyone viewing this page reads the same live Supabase-backed data — nothing to export/import. Use Export (top bar) only if you want a one-off JSON snapshot. To invite a new editor, see <a href="supabase/README.md">supabase/README.md</a>.</div>
   </div>`;
-  $('#nkDiv').onchange=e=>{ const dv=state.divisions.find(d=>d.id===e.target.value); $('#nkDisc').innerHTML=discOptions(dv); };
+  $('#nkDiv').onchange=e=>{
+    const dv=state.divisions.find(d=>d.id===e.target.value);
+    $('#nkDisc').innerHTML=discOptions(dv);
+    const portDefault = dv.id==='TE'||dv.id==='TPT';
+    $('#nkLocFrom').value = portDefault? 'SALDANHA' : '';
+    $('#nkLocTo').value = portDefault? 'SALDANHA' : '';
+  };
 }
 window.addKpi=async ()=>{
   const dv=state.divisions.find(d=>d.id===$('#nkDiv').value);
@@ -750,9 +835,22 @@ window.addKpi=async ()=>{
     const v=parseFloat($('#nkT'+i).value);
     return isNaN(v)? (isNaN(uniform)?0:uniform) : v;
   });
-  const { error } = await sb.from('kpis').insert({ discipline_id:dc.id, name, work_type:$('#nkType').value, unit, targets, sort_order: dc.kpis.length+1 });
+  const locFrom = $('#nkLocFrom').value || null;
+  const locTo = $('#nkLocTo').value || locFrom;
+  const { error } = await sb.from('kpis').insert({ discipline_id:dc.id, name, work_type:$('#nkType').value, unit, targets, sort_order: dc.kpis.length+1, loc_from:locFrom, loc_to:locTo });
   if(error){ toast('Add failed: '+error.message); return; }
-  state = await fetchState(); renderSetup(); renderDrill(); toast('KPI added to '+dv.id+' / '+dc.name+'.');
+  state = await fetchState(); renderSetup(); renderDrill();
+  refreshKpiWeatherRisk().then(()=>{ if(activeTab==='overview') renderOverview(); if(activeTab==='drill') renderDrill(); });
+  toast('KPI added to '+dv.id+' / '+dc.name+'.');
+};
+window.setKpiLocation=async (kid, field, value) => {
+  const x=findKpi(kid); if(!x) return;
+  const col = field==='from' ? 'loc_from' : 'loc_to';
+  const { error } = await sb.from('kpis').update({ [col]: value||null }).eq('id', kid);
+  if(error){ toast('Location update failed: '+error.message); renderSetup(); return; }
+  if(field==='from') x.kpi.locFrom = value||null; else x.kpi.locTo = value||null;
+  refreshKpiWeatherRisk().then(()=>{ if(activeTab==='overview') renderOverview(); if(activeTab==='drill') renderDrill(); });
+  toast('Location updated.');
 };
 window.addDisc=async ()=>{
   const dv=state.divisions.find(d=>d.id===$('#ndDiv').value);
@@ -939,6 +1037,7 @@ function showSetupNeeded(msg){
   }
   renderAll();
   subscribeRealtime();
+  refreshKpiWeatherRisk().then(()=>{ if(activeTab==='overview') renderOverview(); if(activeTab==='drill') renderDrill(); });
 })();
 </script>
 </body>

@@ -113,6 +113,45 @@ drop policy if exists "kpis editable by admin" on kpis;
 create policy "kpis editable by admin" on kpis for all using (is_admin()) with check (is_admin());
 
 -- =====================================================================
+-- KPI location — links a work item back to the WeatherWatch forecast.
+-- loc_from/loc_to hold a loop id ('1'..'19' or 'SALDANHA'); equal values
+-- mean a single point, different values mean a section spanning the
+-- loops between them (inclusive). Null = not mapped yet (no weather
+-- risk shown for that KPI until an admin sets one in Setup).
+-- =====================================================================
+alter table kpis add column if not exists loc_from text;
+alter table kpis add column if not exists loc_to text;
+
+-- TE and TPT disciplines are all port/workshop-based — default those
+-- KPIs to Saldanha Bay if not already mapped.
+update kpis k
+set loc_from = 'SALDANHA', loc_to = 'SALDANHA'
+from disciplines d
+where k.discipline_id = d.id
+  and d.division_id in ('TE','TPT')
+  and k.loc_from is null;
+
+-- Seed a plausible starting location for existing TRIM KPIs so the
+-- feature has data to show immediately — replace with the real location
+-- via Setup > KPI register once confirmed. Safe to re-run: only fills
+-- in KPIs that don't have a location yet.
+do $$
+declare
+  r record;
+  loops text[] := array['19','18','17','16','15','14','13','12','11','10','9','8','7','6','5','4','3','2','1'];
+  pick text;
+begin
+  for r in
+    select k.id from kpis k
+    join disciplines d on d.id = k.discipline_id
+    where d.division_id = 'TRIM' and k.loc_from is null
+  loop
+    pick := loops[1 + floor(random() * array_length(loops,1))::int];
+    update kpis set loc_from = pick, loc_to = pick where id = r.id;
+  end loop;
+end $$;
+
+-- =====================================================================
 -- Daily actuals & deviations — the core reporting flow.
 -- Writable by admins AND by the editor role matching the KPI's division
 -- (TRIM editor -> TRIM KPIs, etc.), enforced here, not just in the UI.
