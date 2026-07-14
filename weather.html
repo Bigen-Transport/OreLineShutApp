@@ -90,26 +90,13 @@ async function fetchLoopForecast(loop, days){
   return {loop, dates:d.time, rows};
 }
 
-function renderRiskTrack(loopResults){
-  return `<div class="risktrack-wrap"><div class="risktrack">${loopResults.map(res=>{
-    const l=res.loop;
-    let cls='rl-low', label=l.port?'⚓':l.loop;
-    if(res.rows){
-      const worst=res.rows.reduce((w,r)=>RISK_RANK[r.level]>RISK_RANK[w]?r.level:w,'low');
-      cls='rl-'+worst;
-    } else cls='';
-    if(l.port) cls+=' rl-port';
-    return `<div class="rloop ${cls}"><div class="dot">${label}</div><div class="nm">${esc(l.name)}</div></div>`;
-  }).join('')}</div></div>`;
-}
-
 function renderWxTable(loopResults, dates, days){
   const dayHead1 = dates.map((t,i)=>{
     const dt=new Date(t+'T00:00:00');
     const tag = i<15 ? 'IFS' : 'EC46';
-    return `<th colspan="3" class="daygrp">${dt.toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'})} <span style="opacity:.6">${tag}</span></th>`;
+    return `<th colspan="3" class="daygrp daylabel">${dt.toLocaleDateString('en-ZA',{weekday:'short',day:'2-digit',month:'short'})} <span style="opacity:.6">${tag}</span></th>`;
   }).join('');
-  const dayHead2 = dates.map(()=>`<th class="daygrp">mm</th><th>km/h</th><th>°C range</th>`).join('');
+  const dayHead2 = dates.map(()=>`<th class="daygrp metric-mm">mm</th><th class="metric-wind">km/h</th><th class="metric-temp">°C range</th>`).join('');
   const bodyRows = loopResults.map(res=>{
     const l=res.loop;
     if(!res.rows){
@@ -119,10 +106,11 @@ function renderWxTable(loopResults, dates, days){
     const cells=res.rows.map(r=>{
       if(RISK_RANK[r.level]>RISK_RANK[worst]) worst=r.level;
       const cls = r.level==='high'?'red':(r.level==='medium'?'amber':'');
-      return `<td class="daycell ${cls}">${r.rain}</td><td class="daycell ${cls}">${r.wind}</td><td class="daycell ${cls}">${r.tmin}–${r.tmax}°</td>`;
+      return `<td class="daycell metric-mm ${cls}">${r.rain}</td><td class="daycell metric-wind ${cls}">${r.wind}</td><td class="daycell metric-temp ${cls}">${r.tmin}–${r.tmax}°</td>`;
     }).join('');
     const riskBadge = worst==='high'?'b-bad':(worst==='medium'?'b-warn':'b-grey');
-    return `<tr><td class="loopcell">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${cells}<td class="riskcell"><span class="badge ${riskBadge}">${RISK_LABEL[worst]}</span></td></tr>`;
+    const loopRiskCls = worst==='high'?'risk-high':(worst==='medium'?'risk-medium':'');
+    return `<tr><td class="loopcell ${loopRiskCls}">${l.loop!=null?'L'+l.loop+' ':''}${esc(l.name)}</td>${cells}<td class="riskcell"><span class="badge ${riskBadge}">${RISK_LABEL[worst]}</span></td></tr>`;
   }).join('');
   return `<div class="wxtblwrap"><table class="wx">
     <thead><tr><th class="loopcell" rowspan="2">Loop</th>${dayHead1}<th rowspan="2">Risk</th></tr><tr>${dayHead2}</tr></thead>
@@ -140,21 +128,17 @@ async function renderWeather(){
       <span class="lg-amber">Amber</span> = medium risk (wind 25–40 km/h · precip 4–10 mm/day · temp &lt;5°C or &gt;35°C)
       <span class="sep">|</span>
       <span class="lg-red">Red</span> = high risk (wind &gt;40 km/h · precip &gt;10 mm/day · temp &lt;0°C or &gt;40°C)
+      <span class="sep">|</span>
+      The left edge of each loop's row is coloured when that loop has an amber/red day in the window.
     </div>
     <div class="card">
-      <h2>Risk map <span class="hint">Sishen → Saldanha Bay · live weather risk by loop</span></h2>
-      <div id="wxTrack">${renderRiskTrack(WX_LOOPS.map(l=>({loop:l,rows:null})))}</div>
-    </div>
-    <div class="card">
-      <h2>Weather Watch — ${days}-day corridor forecast <span class="hint">per loop, per day</span></h2>
+      <h2>Weather Watch — ${days}-day corridor forecast <span class="hint">Sishen → Saldanha Bay · per loop, per day</span></h2>
       <div id="wxTableWrap" class="note">Loading forecast for ${WX_LOOPS.length} loops…</div>
     </div>`;
 
   const settled = await Promise.allSettled(WX_LOOPS.map(l=>fetchLoopForecast(l, days)));
   const loopResults = settled.map((s,i)=> s.status==='fulfilled'? s.value : {loop:WX_LOOPS[i], rows:null});
   const ok = loopResults.filter(r=>r.rows);
-
-  $('#wxTrack').innerHTML = renderRiskTrack(loopResults);
 
   if(!ok.length){
     $('#wxTableWrap').innerHTML = `<div class="note">Live forecast unavailable in this environment. When hosted, this table pulls a ${days}-day Open-Meteo forecast (precipitation, max wind speed, temperature range) for each of the ${WX_LOOPS.length} loops between Sishen and Saldanha Bay, risk-flagged per the legend above.</div>`;

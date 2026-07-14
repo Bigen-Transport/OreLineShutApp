@@ -116,6 +116,7 @@ table.data input[type=number]{width:74px;padding:4px 6px;border:1px solid var(--
 .kpi>header{display:flex;align-items:center;gap:10px;padding:10px 16px 10px 40px;cursor:pointer;user-select:none;flex-wrap:wrap}
 .kpi>header .nm{font-size:14px;font-weight:500;flex:1;min-width:160px}
 .kpi>header .nm small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);font-weight:400}
+.updated-tag{font-family:var(--mono);font-size:10.5px;font-weight:400;color:var(--ink-2)}
 .kpibody{padding:6px 16px 16px 40px;display:none}
 .kpi.open .kpibody{display:block}
 .discipline .disc-body{display:none}
@@ -148,27 +149,22 @@ table.data input[type=number]{width:74px;padding:4px 6px;border:1px solid var(--
 .wxlegend .lg-red{color:#fff;background:var(--tn-red);border-radius:4px;padding:0 5px;font-weight:600}
 .wxlegend .sep{color:var(--line);margin:0 4px}
 
-.risktrack-wrap{overflow-x:auto;padding-bottom:4px}
-.risktrack{display:flex;min-width:max-content;position:relative;padding-top:6px}
-.risktrack::before{content:"";position:absolute;left:20px;right:20px;top:34px;height:3px;background:var(--steel-2);border-radius:2px;z-index:0}
-.rloop{flex:none;width:92px;text-align:center;position:relative;z-index:1}
-.rloop .dot{width:30px;height:30px;border-radius:50%;background:#8FA0B0;color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto;font-family:var(--disp);font-weight:700;font-size:13px;border:2px solid var(--card)}
-.rloop.rl-low .dot{background:#8FA0B0}
-.rloop.rl-medium .dot{background:var(--warn)}
-.rloop.rl-high .dot{background:var(--tn-red)}
-.rloop.rl-port .dot{background:var(--steel);width:24px;height:24px;font-size:11px}
-.rloop .nm{font-family:var(--disp);font-size:10.5px;font-weight:600;letter-spacing:.02em;margin-top:26px;white-space:nowrap;transform:rotate(-30deg);transform-origin:top left;color:var(--ink-2)}
-
 .wxtblwrap{overflow-x:auto}
 table.wx{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
-table.wx th,table.wx td{padding:5px 7px;border-bottom:1px solid #EDEFF1;border-right:1px solid #F3F5F6;text-align:right}
+table.wx th,table.wx td{padding:6px 8px;border-bottom:1px solid #EDEFF1;border-right:1px solid #F3F5F6;text-align:right}
 table.wx th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);background:#FAFBFC;position:sticky;top:0}
-table.wx td.loopcell,table.wx th.loopcell{text-align:left;position:sticky;left:0;background:#fff;font-weight:600;font-family:var(--disp);letter-spacing:.02em;z-index:2;box-shadow:2px 0 0 var(--line)}
+table.wx th.daylabel{font-size:11px;font-weight:700;color:var(--ink);background:#F1F3F5}
+table.wx td.loopcell,table.wx th.loopcell{text-align:left;position:sticky;left:0;background:#fff;font-weight:600;font-family:var(--disp);letter-spacing:.02em;z-index:2;box-shadow:2px 0 0 var(--line);border-left:4px solid transparent}
 table.wx th.loopcell{background:#FAFBFC;z-index:3}
+table.wx td.loopcell.risk-medium{border-left-color:var(--warn)}
+table.wx td.loopcell.risk-high{border-left-color:var(--tn-red)}
 table.wx td.daycell{font-family:var(--mono)}
+table.wx .metric-mm{color:#2F6FA8}
+table.wx .metric-wind{color:#0F7A6E}
+table.wx .metric-temp{color:#7A4F9E}
 table.wx td.amber{background:var(--warn-bg)}
 table.wx td.red{background:#FBDBD8}
-table.wx .daygrp{text-align:center;border-left:2px solid var(--line)}
+table.wx .daygrp{text-align:center;border-left:3px solid #AEB8C2}
 table.wx td.riskcell{text-align:center}
 
 /* ---------- Forms / setup ---------- */

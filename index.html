@@ -112,6 +112,7 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='bl
 function dayDate(i){ const d=new Date(state.meta.startDate+'T00:00:00'); d.setDate(d.getDate()+i); return d; }
 function fmtDay(i){ return dayDate(i).toLocaleDateString('en-ZA',{day:'2-digit',month:'short'}); }
 function fmtDow(i){ return dayDate(i).toLocaleDateString('en-ZA',{weekday:'short'}); }
+function fmtUpdated(iso){ return iso? new Date(iso).toLocaleDateString('en-ZA',{day:'2-digit',month:'short'})+' '+new Date(iso).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}) : null; }
 
 /* ---------- Supabase backend ---------- */
 /* Replace these two with your project's values (Project Settings > API),
@@ -161,6 +162,10 @@ async function fetchState(){
 
   const actualsByKpi={}; (actuals||[]).forEach(a=>{ (actualsByKpi[a.kpi_id] ||= {})[a.day]=a.value; });
   const devByKpi={}; (deviations||[]).forEach(d=>{ (devByKpi[d.kpi_id] ||= {})[d.day]={cat:d.category, reason:d.reason}; });
+  const lastUpdatedByKpi={};
+  const trackUpdate=(kpiId, ts)=>{ if(!ts) return; if(!lastUpdatedByKpi[kpiId] || ts>lastUpdatedByKpi[kpiId]) lastUpdatedByKpi[kpiId]=ts; };
+  (actuals||[]).forEach(a=>trackUpdate(a.kpi_id, a.updated_at));
+  (deviations||[]).forEach(d=>trackUpdate(d.kpi_id, d.updated_at));
   const photosByKpi={}; (photos||[]).forEach(p=>{
     const { data:pub } = sb.storage.from('kpi-photos').getPublicUrl(p.storage_path);
     (photosByKpi[p.kpi_id] ||= []).push({ id:p.id, day:p.day, dataUrl:pub.publicUrl, lat:p.lat, lon:p.lon, caption:p.caption, ts:p.created_at, gpsSource:p.gps_source });
@@ -171,7 +176,7 @@ async function fetchState(){
   (kpis||[]).forEach(k=>{
     const targets=(k.targets||[]).slice(0,days); while(targets.length<days) targets.push(0);
     const actualsArr=Array.from({length:days},(_,d)=>{ const v=(actualsByKpi[k.id]||{})[d]; return v===undefined?null:v; });
-    (kpisByDisc[k.discipline_id] ||= []).push({ id:k.id, name:k.name, workType:k.work_type, unit:k.unit, targets, actuals:actualsArr, dev:devByKpi[k.id]||{}, photos:photosByKpi[k.id]||[] });
+    (kpisByDisc[k.discipline_id] ||= []).push({ id:k.id, name:k.name, workType:k.work_type, unit:k.unit, targets, actuals:actualsArr, dev:devByKpi[k.id]||{}, photos:photosByKpi[k.id]||[], lastUpdated:lastUpdatedByKpi[k.id]||null });
   });
   const discByDiv={};
   (disciplines||[]).forEach(dc=>{ (discByDiv[dc.division_id] ||= []).push({ id:dc.id, name:dc.name, kpis:kpisByDisc[dc.id]||[] }); });
@@ -370,10 +375,11 @@ function renderDrill(){
         const bg = stt==='good'?'b-good':stt==='warn'?'b-warn':stt==='bad'?'b-bad':'b-grey';
         const pct = totT(k)? Math.round(cumA(k,ref)/totT(k)*100):0;
         const open = ui.openKpi.has(k.id);
+        const updated = fmtUpdated(k.lastUpdated);
         kpis += `<div class="kpi ${open?'open':''}" data-kpi="${k.id}">
           <header onclick="toggleKpi('${k.id}')">
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
-            <div class="nm">${esc(k.name)}<small>${esc(k.workType)} · ${esc(k.unit)}</small></div>
+            <div class="nm">${esc(k.name)} ${updated?`<span class="updated-tag">Updated ${updated}</span>`:''}<small>${esc(k.workType)} · ${esc(k.unit)}</small></div>
             <span class="badge b-grey">${pct}% of shutdown scope</span>
             <span class="badge ${bg}">${stt==='grey'?'no data':'vs plan: '+Math.round((cumA(k,ref)/Math.max(cumT(k,ref),0.0001))*100)+'%'}</span>
           </header>
